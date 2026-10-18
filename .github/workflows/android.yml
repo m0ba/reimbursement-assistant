@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Release
 
 on:
   push:
@@ -82,25 +82,110 @@ jobs:
           cp android/app/build/outputs/apk/release/app-release.apk "release/reimbursement-${VERSION}.apk"
           ls -lh release
 
-      - name: Upload artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: apk
           path: release/*.apk
 
-      - name: Create GitHub Release
+  desktop:
+    needs: build
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - os: macos-latest
+            name: mac
+            cmd: npm run dist:mac
+          - os: windows-latest
+            name: win
+            cmd: npm run dist:win
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web assets
+        run: npm run build
+
+      - name: Copy web build into desktop shell
+        shell: bash
+        run: |
+          mkdir -p desktop/app
+          cp -R dist/. desktop/app/
+          ls desktop/app | head
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm install --no-audit --no-fund
+
+      - name: Set desktop version
         if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          node -e "const fs=require('fs');const p=require('./desktop/package.json');p.version=process.argv[1];fs.writeFileSync('./desktop/package.json',JSON.stringify(p,null,2))" "$VERSION"
+
+      - name: Build ${{ matrix.name }}
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: ${{ matrix.cmd }}
+
+      - name: Upload desktop build
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.name }}
+          path: |
+            desktop/release/*.exe
+            desktop/release/*.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build, desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build outputs
+        uses: actions/download-artifact@v4
+        with:
+          path: release
+
+      - name: List files
+        run: find release -type f -maxdepth 3 -printf '%p %k KB\n' | sort
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: release/*.apk
+          files: |
+            release/apk/*.apk
+            release/desktop-mac/*.zip
+            release/desktop-win/*.exe
           name: 报销助手 ${{ github.ref_name }}
           body: |
             ## 报销助手 ${{ github.ref_name }}
 
             本地优先的报销材料工具：发票 A4 拼版、发票信息表、行程轨迹图，全部在设备上处理，不上传。
 
-            - 安装包：`reimbursement-${{ github.ref_name }}.apk`（debug 签名，可直接安装）
-            - 安装时需要允许「安装未知来源应用」
-            - 首次打开会引导阅读说明并预热 OCR 模型
+            **Android**
+            - `reimbursement-<版本>.apk`，安装时需要允许「安装未知来源应用」
+
+            **Windows（免安装）**
+            - `reimbursement-<版本>-win.exe`，下载后双击即用，不需要安装
+
+            **macOS（免安装）**
+            - `reimbursement-<版本>-mac-arm64.zip`（Apple 芯片）或 `-mac-x64.zip`（Intel）
+            - 解压后把「报销助手」拖到任意位置双击运行；首次打开如被拦截，右键 →「打开」
+
+            桌面版与手机版共用同一套本地数据格式，首次打开会引导阅读说明并预热 OCR 模型。
 
             完整改动见 [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)。

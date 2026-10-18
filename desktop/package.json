@@ -1,0 +1,48 @@
+{
+  "name": "reimbursement-desktop",
+  "version": "0.3.0",
+  "private": true,
+  "description": "报销助手桌面版（免安装）",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dist:mac": "electron-builder --mac zip --x64 --arm64 --publish never",
+    "dist:win": "electron-builder --win portable --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.haozihao.reimbursement",
+    "productName": "报销助手",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "app/**"
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "artifactName": "reimbursement-${version}-win.${ext}"
+    },
+    "portable": {
+      "artifactName": "reimbursement-${version}-win.${ext}"
+    },
+    "mac": {
+      "target": [
+        "zip"
+      ],
+      "category": "public.app-category.finance",
+      "identity": null,
+      "artifactName": "reimbursement-${version}-mac-${arch}.${ext}"
+    },
+    "dmg": {
+      "title": "报销助手 ${version}"
+    }
+  }
+}

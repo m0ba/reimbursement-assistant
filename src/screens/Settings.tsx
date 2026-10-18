@@ -52,6 +52,36 @@ async function fetchJson(url: string, ms: number): Promise<any> {
   }
 }
 
+function desktopInfo(): { platform: string; arch: string } | null {
+  const d = (window as any).desktopApp;
+  return d?.platform ? { platform: d.platform, arch: d.arch || 'arm64' } : null;
+}
+
+function pickAsset(assets: { name?: string; browser_download_url?: string }[], fallback: string): string {
+  const list = (assets || [])
+    .filter((a) => a.browser_download_url)
+    .map((a) => ({ n: String(a.name || '').toLowerCase(), u: a.browser_download_url as string }));
+  const desk = desktopInfo();
+  if (desk?.platform === 'darwin') {
+    return (
+      list.find((a) => a.n.includes('-mac-') && a.n.endsWith(`-${desk.arch}.zip`))?.u ||
+      list.find((a) => a.n.includes('-mac-') && a.n.endsWith('.zip'))?.u ||
+      fallback
+    );
+  }
+  if (desk?.platform === 'win32') {
+    return list.find((a) => a.n.includes('-win') && a.n.endsWith('.exe'))?.u || fallback;
+  }
+  return list.find((a) => a.n.endsWith('.apk'))?.u || fallback;
+}
+
+function downloadUrlFor(version: string): string {
+  const desk = desktopInfo();
+  if (desk?.platform === 'darwin') return `${DOWNLOAD_BASE}/v${version}/reimbursement-${version}-mac-${desk.arch}.zip`;
+  if (desk?.platform === 'win32') return `${DOWNLOAD_BASE}/v${version}/reimbursement-${version}-win.exe`;
+  return `${DOWNLOAD_BASE}/v${version}/reimbursement-${version}.apk`;
+}
+
 export default function Settings() {
   const settings = useStore((s) => s.settings);
   const setSettings = useStore((s) => s.setSettings);
@@ -104,8 +134,7 @@ export default function Settings() {
         tag = String(data.tag_name || '');
         htmlUrl = String(data.html_url || htmlUrl);
         date = String(data.published_at || data.created_at || '').slice(0, 10);
-        const apk = (data.assets || []).find((a: { name?: string }) => String(a.name || '').endsWith('.apk'));
-        apkUrl = apk?.browser_download_url || '';
+        apkUrl = pickAsset(data.assets || [], '');
         notes = String(data.body || '')
           .split('\n')
           .map((l) =>
@@ -128,7 +157,7 @@ export default function Settings() {
           date = String(data.date || '');
           notes = Array.isArray(data.notes) ? data.notes.slice(0, 6).map(String) : [];
           htmlUrl = `https://github.com/m0ba/reimbursement-assistant/releases/tag/v${ver}`;
-          apkUrl = `${DOWNLOAD_BASE}/v${ver}/reimbursement-${ver}.apk`;
+          apkUrl = downloadUrlFor(ver);
         }
       }
       if (!tag) throw new Error('tag');

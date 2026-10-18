@@ -19,3 +19,7 @@ android/app/src/main/assets/public/
 tests/
 
 *.tsbuildinfo
+
+desktop/node_modules/
+desktop/app/
+desktop/release/
