@@ -13,7 +13,10 @@ const VERSION_SOURCES = [
   'https://raw.githubusercontent.com/m0ba/reimbursement-assistant/main/public/version.json',
 ];
 const DOWNLOAD_BASE = 'https://github.com/m0ba/reimbursement-assistant/releases/download';
-const MIRROR = 'https://gh-proxy.com/';
+const MIRRORS = [
+  { name: '加速线路 1', host: 'gh-proxy.com', prefix: 'https://gh-proxy.com/' },
+  { name: '加速线路 2', host: 'ghproxy.net', prefix: 'https://ghproxy.net/' },
+];
 
 type Release = {
   version: string;
@@ -59,6 +62,7 @@ export default function Settings() {
   const [delTarget, setDelTarget] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const [release, setRelease] = useState<Release | null>(null);
+  const [mirrorFor, setMirrorFor] = useState<string | null>(null);
   const batches = useStore((s) => s.batches);
   const files = useStore((s) => s.files);
 
@@ -70,6 +74,20 @@ export default function Settings() {
       return;
     }
     window.open(url, '_blank', 'noopener');
+  };
+
+  const copyLink = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const el = document.createElement('textarea');
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      el.remove();
+    }
+    useStore.getState().showToast('下载链接已复制，可粘贴到浏览器或迅雷');
   };
 
   const checkUpdate = async () => {
@@ -272,12 +290,41 @@ export default function Settings() {
           className="btn wide tint"
           style={{ marginTop: 10 }}
           onClick={() => {
-            if (release) openLink(MIRROR + release.apk);
+            if (release) setMirrorFor(release.apk);
             setRelease(null);
           }}
         >
           备用下载（国内加速）
         </button>
+      </Sheet>
+
+      <Sheet open={!!mirrorFor} onClose={() => setMirrorFor(null)} title="选择下载线路" lead="哪条快用哪条，装的内容完全一样。">
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          {MIRRORS.map((m) => (
+            <div key={m.host}>
+              <button
+                className="list-item"
+                style={{ width: '100%' }}
+                onClick={() => {
+                  if (mirrorFor) openLink(m.prefix + mirrorFor);
+                  setMirrorFor(null);
+                }}
+              >
+                <div className="grow" style={{ textAlign: 'left' }}>
+                  <div className="title">{m.name}</div>
+                  <div className="meta">{m.host}</div>
+                </div>
+                <span style={{ color: 'var(--text3)', fontSize: 22, lineHeight: 1 }}>›</span>
+              </button>
+            </div>
+          ))}
+          <button className="list-item" style={{ width: '100%' }} onClick={() => mirrorFor && copyLink(mirrorFor)}>
+            <div className="grow" style={{ textAlign: 'left' }}>
+              <div className="title">复制下载链接</div>
+              <div className="meta">粘到浏览器或迅雷里下载</div>
+            </div>
+          </button>
+        </div>
       </Sheet>
 
       <div className="section-title">帮助</div>

@@ -34,6 +34,8 @@ interface Store {
   settings: Settings;
   task: TaskState;
   toast: string | null;
+  savedFile: { name: string; uri: string; mime: string } | null;
+  setSavedFile: (f: Store['savedFile']) => void;
   setView: (v: Store['view'], batchId?: string | null) => void;
   addBatch: (b: Batch) => void;
   patchBatch: (id: string, patch: Partial<Batch> | ((b: Batch) => Partial<Batch>)) => void;
@@ -72,6 +74,8 @@ export const useStore = create<Store>()(
       settings: { ocrModelId: 'eng-fast', installedModels: ['eng-fast'], lastInvoiceMode: 'info', perPage: 2, introSeen: false, trajPerPage: 20 },
       task: emptyTask,
       toast: null,
+      savedFile: null,
+      setSavedFile: (savedFile) => set({ savedFile }),
       setView: (view, batchId) => {
         if (typeof window !== 'undefined') window.scrollTo(0, 0);
         set((s) => ({ view, activeBatchId: batchId === undefined ? s.activeBatchId : batchId }));

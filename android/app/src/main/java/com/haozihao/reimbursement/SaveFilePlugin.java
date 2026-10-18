@@ -2,7 +2,9 @@ package com.haozihao.reimbursement;
 
 import android.content.ContentResolver;
 import android.content.ContentValues;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.app.DownloadManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -25,6 +27,30 @@ import java.io.OutputStream;
 /** 把导出的 PDF / Word / CSV 直接写进系统的「下载」目录，不再弹分享面板。 */
 @CapacitorPlugin(name = "SaveFile")
 public class SaveFilePlugin extends Plugin {
+
+    @PluginMethod
+    public void openFile(PluginCall call) {
+        String uriStr = call.getString("uri");
+        String mime = call.getString("mime", "application/octet-stream");
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            if (uriStr != null && !uriStr.isEmpty()) {
+                intent.setDataAndType(Uri.parse(uriStr), mime);
+            }
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (Exception e) {
+            try {
+                Intent downloads = new Intent(DownloadManager.ACTION_VIEW_DOWNLOADS);
+                downloads.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(downloads);
+                call.resolve();
+            } catch (Exception fallback) {
+                call.reject("无法打开文件");
+            }
+        }
+    }
 
     @PluginMethod
     public void save(PluginCall call) {

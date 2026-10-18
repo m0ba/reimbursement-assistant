@@ -60,6 +60,7 @@ export function Confirm({
   title,
   body,
   confirmText = '确认',
+  cancelText = '取消',
   danger,
   onConfirm,
   onClose,
@@ -68,6 +69,7 @@ export function Confirm({
   title: string;
   body: ReactNode;
   confirmText?: string;
+  cancelText?: string;
   danger?: boolean;
   onConfirm: () => void;
   onClose: () => void;
@@ -99,7 +101,7 @@ export function Confirm({
                 <p style={{ whiteSpace: 'pre-line' }}>{body}</p>
               </div>
               <div className="alert-actions">
-                <button onClick={onClose}>取消</button>
+                <button onClick={onClose}>{cancelText}</button>
                 <button className={danger ? 'danger' : 'primary'} onClick={onConfirm}>
                   {confirmText}
                 </button>

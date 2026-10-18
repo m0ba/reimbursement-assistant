@@ -48,12 +48,13 @@ export async function downloadBlob(blob: Blob, filename: string): Promise<void> 
     try {
       const { registerPlugin } = await import('@capacitor/core');
       const SaveFile = registerPlugin<{
-        save: (o: { fileName: string; base64: string; mime: string }) => Promise<{ path: string }>;
+        save: (o: { fileName: string; base64: string; mime: string }) => Promise<{ path: string; uri: string }>;
       }>('SaveFile');
       const data = await blobToBase64(blob);
-      await SaveFile.save({ fileName: filename, base64: data, mime: blob.type || 'application/octet-stream' });
+      const mime = blob.type || 'application/octet-stream';
+      const res = await SaveFile.save({ fileName: filename, base64: data, mime });
       const { useStore } = await import('./store');
-      useStore.getState().showToast(`已保存到「下载」：${filename}`);
+      useStore.getState().setSavedFile({ name: filename, uri: res?.uri || '', mime });
       return;
     } catch {
       /* 老系统保存失败时，退回系统分享 */

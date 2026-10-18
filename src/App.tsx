@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useStore } from './lib/store';
 import { TaskBadge } from './components/TaskBadge';
 import { Intro } from './components/Intro';
+import { Confirm } from './components/Sheet';
 import { IconBack, IconGear } from './components/Icons';
 import Home from './screens/Home';
 import Invoices from './screens/Invoices';
@@ -14,6 +15,20 @@ export default function App() {
   const view = useStore((s) => s.view);
   const setView = useStore((s) => s.setView);
   const toast = useStore((s) => s.toast);
+  const savedFile = useStore((s) => s.savedFile);
+  const setSavedFile = useStore((s) => s.setSavedFile);
+
+  const openSavedFile = async () => {
+    if (!savedFile) return;
+    try {
+      const { registerPlugin } = await import('@capacitor/core');
+      const SaveFile = registerPlugin<{ openFile: (o: { uri: string; mime: string }) => Promise<void> }>('SaveFile');
+      await SaveFile.openFile({ uri: savedFile.uri, mime: savedFile.mime });
+    } catch {
+      useStore.getState().showToast('没有找到能打开这个文件的应用');
+    }
+    setSavedFile(null);
+  };
 
   useEffect(() => {
     const onVis = () => {
@@ -57,6 +72,15 @@ export default function App() {
       <div className="app-footer">报销助手 v{APP_VERSION} · 全部在本机处理</div>
 
       {toast && <div className="toast">{toast}</div>}
+      <Confirm
+        open={!!savedFile}
+        title="已保存"
+        body={savedFile ? `文件已存到手机的「下载」文件夹：\n${savedFile.name}\n\n可以现在打开，也可以稍后去文件管理里找。` : ''}
+        confirmText="打开文件"
+        cancelText="知道了"
+        onClose={() => setSavedFile(null)}
+        onConfirm={() => void openSavedFile()}
+      />
       <Intro />
     </div>
   );
