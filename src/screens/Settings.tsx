@@ -231,8 +231,6 @@ export default function Settings() {
           );
         })}
       </div>
-      <div className="tiny" style={{ margin: '8px 6px 0' }}>模型只能从程序内置目录下载，安装后校验文件完整性；默认模型不可删除。</div>
-
       <div className="section-title">存储与清理</div>
       <div className="card">
         <div className="row between">
