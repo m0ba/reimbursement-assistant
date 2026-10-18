@@ -1,5 +1,7 @@
 apply plugin: 'com.android.application'
 
+def keyStorePath = System.getenv("REIMB_KEYSTORE") ?: ""
+
 android {
     namespace = "com.haozihao.reimbursement"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,10 +18,28 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (keyStorePath) {
+                storeFile file(keyStorePath)
+                storePassword System.getenv("REIMB_STORE_PASS")
+                keyAlias System.getenv("REIMB_KEY_ALIAS")
+                keyPassword System.getenv("REIMB_KEY_PASS")
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (keyStorePath) {
+                signingConfig signingConfigs.release
+            }
+        }
+        debug {
+            if (keyStorePath) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

@@ -53,11 +53,24 @@ jobs:
           sed -i "s/versionName \".*\"/versionName \"$VERSION\"/" android/app/build.gradle
           sed -i "s/versionCode .*/versionCode ${{ github.run_number }}/" android/app/build.gradle
 
+      - name: Decode keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then echo "missing ANDROID_KEYSTORE_BASE64" >&2; exit 1; fi
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          ls -l "$RUNNER_TEMP/release.keystore"
+
       - name: Assemble APK
+        env:
+          REIMB_KEYSTORE: ${{ runner.temp }}/release.keystore
+          REIMB_STORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          REIMB_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          REIMB_KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Collect APK
         run: |
@@ -66,7 +79,7 @@ jobs:
           if [ -z "$VERSION" ] || [ "$VERSION" = "$GITHUB_REF_NAME" ] && [ "$GITHUB_REF_TYPE" != "tag" ]; then
             VERSION="dev-${GITHUB_SHA::7}"
           fi
-          cp android/app/build/outputs/apk/debug/app-debug.apk "release/reimbursement-${VERSION}.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "release/reimbursement-${VERSION}.apk"
           ls -lh release
 
       - name: Upload artifact
