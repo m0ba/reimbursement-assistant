@@ -13,6 +13,7 @@ const VERSION_SOURCES = [
   'https://raw.githubusercontent.com/m0ba/reimbursement-assistant/main/public/version.json',
 ];
 const DOWNLOAD_BASE = 'https://github.com/m0ba/reimbursement-assistant/releases/download';
+const MIRROR = 'https://gh-proxy.com/';
 
 type Release = {
   version: string;
@@ -267,6 +268,16 @@ export default function Settings() {
             去下载
           </button>
         </div>
+        <button
+          className="btn wide tint"
+          style={{ marginTop: 10 }}
+          onClick={() => {
+            if (release) openLink(MIRROR + release.apk);
+            setRelease(null);
+          }}
+        >
+          备用下载（国内加速）
+        </button>
       </Sheet>
 
       <div className="section-title">帮助</div>
