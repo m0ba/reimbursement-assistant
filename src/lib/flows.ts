@@ -225,6 +225,31 @@ export async function importTrajectoryFiles(files: File[]): Promise<Batch> {
   return batch;
 }
 
+export async function appendTrajectoryFiles(batchId: string, files: File[]): Promise<void> {
+  const batch = s().batches.find((b) => b.id === batchId);
+  if (!batch || !files.length) return;
+  const items: TrajItem[] = [];
+  for (const f of files) {
+    const key = `blob_${uid('img')}`;
+    await putBlob(key, f);
+    let w = 0;
+    let h = 0;
+    try {
+      const bmp = await createImageBitmap(f);
+      w = bmp.width;
+      h = bmp.height;
+      bmp.close();
+    } catch {
+      /* ignore */
+    }
+    items.push({ id: uid('t'), fileName: f.name, blobKey: key, w, h, status: 'pending' });
+  }
+  if (!items.length) return;
+  s().patchBatch(batchId, { images: [...(batch.images || []), ...items] });
+  startOcr(batchId);
+  s().showToast(`已加入 ${items.length} 张截图`);
+}
+
 export function startOcr(batchId: string) {
   enqueue({
     kind: 'trajectory',
@@ -240,7 +265,7 @@ export function startOcr(batchId: string) {
         if (ctx.cancelled()) return;
         ctx.setStep(`识别头部时间 ${done + 1}/${list.length}`);
         let patch: Partial<TrajItem> = { status: 'unknown' };
-        if (item.status === 'ok' && item.manual) {
+        if (item.status === 'ok' || item.status === 'skipped') {
           done++;
           ctx.setProgress(done, list.length);
           continue;

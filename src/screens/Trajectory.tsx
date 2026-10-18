@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Reorder, motion, useDragControls } from 'framer-motion';
 import { useStore } from '../lib/store';
 import type { TrajItem } from '../lib/types';
-import { exportTrajectory, finishTrajectoryBatch, importTrajectoryFiles, restoreTraj, setTrajTime, skipAllUnknown, skipTraj } from '../lib/flows';
+import { appendTrajectoryFiles, exportTrajectory, finishTrajectoryBatch, importTrajectoryFiles, restoreTraj, setTrajTime, skipAllUnknown, skipTraj } from '../lib/flows';
 import { Sheet } from '../components/Sheet';
 import { useBlobUrl } from '../components/PdfThumb';
 import { IconCheck, IconDownload, IconPlus, IconRoute } from '../components/Icons';
@@ -110,7 +110,15 @@ export default function Trajectory() {
         multiple
         hidden
         onChange={(e) => {
-          onPick(e.target.files);
+          const list = e.target.files;
+          if (list?.length) {
+            if (batch) {
+              const arr = Array.from(list).filter((f) => f.type.startsWith('image/'));
+              if (arr.length) void appendTrajectoryFiles(batch.id, arr);
+            } else {
+              void onPick(list);
+            }
+          }
           e.target.value = '';
         }}
       />
