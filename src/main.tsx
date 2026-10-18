@@ -33,6 +33,32 @@ if ('serviceWorker' in navigator) {
   void forceFreshIfStale();
 }
 
+async function applyNativeInsets() {
+  try {
+    const { registerPlugin } = await import('@capacitor/core');
+    const Insets = registerPlugin<{ get: () => Promise<{ top: number; bottom: number }> }>('Insets');
+    const res = await Insets.get();
+    const root = document.documentElement;
+    if (res && res.top > 0) root.style.setProperty('--safe-top', `${Math.round(res.top)}px`);
+    if (res && res.bottom > 0) root.style.setProperty('--safe-bottom', `${Math.round(res.bottom)}px`);
+  } catch {
+    /* 网页端没有原生插件，继续用 env() 的兜底值 */
+  }
+}
+
+if ((window as any).Capacitor?.isNativePlatform?.()) {
+  void applyNativeInsets();
+  window.setTimeout(() => void applyNativeInsets(), 600);
+  let insetsTimer = 0;
+  const refreshInsets = () => {
+    window.clearTimeout(insetsTimer);
+    insetsTimer = window.setTimeout(() => void applyNativeInsets(), 160);
+  };
+  window.addEventListener('resize', refreshInsets);
+  window.addEventListener('orientationchange', refreshInsets);
+  window.visualViewport?.addEventListener('resize', refreshInsets);
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <App />
