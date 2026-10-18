@@ -32,6 +32,22 @@ function cmpVersion(a: string, b: string) {
   return 0;
 }
 
+async function fetchJson(url: string, ms: number): Promise<any> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), ms);
+  try {
+    const res = await fetch(url, {
+      cache: 'no-store',
+      signal: ctl.signal,
+      headers: { Accept: 'application/vnd.github+json' },
+    });
+    if (!res.ok) throw new Error(String(res.status));
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export default function Settings() {
   const settings = useStore((s) => s.settings);
   const setSettings = useStore((s) => s.setSettings);
@@ -65,46 +81,35 @@ export default function Settings() {
       let date = '';
       let notes: string[] = [];
       try {
-        const res = await fetch(RELEASE_API, { cache: 'no-store', headers: { Accept: 'application/vnd.github+json' } });
-        if (res.ok) {
-          const data = await res.json();
-          tag = String(data.tag_name || '');
-          htmlUrl = String(data.html_url || htmlUrl);
-          date = String(data.published_at || data.created_at || '').slice(0, 10);
-          const apk = (data.assets || []).find((a: { name?: string }) => String(a.name || '').endsWith('.apk'));
-          apkUrl = apk?.browser_download_url || '';
-          notes = String(data.body || '')
-            .split('\n')
-            .map((l) =>
-              l
-                .replace(/^[-*]\s*/, '')
-                .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-                .replace(/[`*_]/g, '')
-                .trim(),
-            )
-            .filter((l) => l && !l.startsWith('#') && !l.startsWith('>') && !l.startsWith('!'))
-            .slice(0, 6);
-        }
+        const data = await fetchJson(RELEASE_API, 5500);
+        tag = String(data.tag_name || '');
+        htmlUrl = String(data.html_url || htmlUrl);
+        date = String(data.published_at || data.created_at || '').slice(0, 10);
+        const apk = (data.assets || []).find((a: { name?: string }) => String(a.name || '').endsWith('.apk'));
+        apkUrl = apk?.browser_download_url || '';
+        notes = String(data.body || '')
+          .split('\n')
+          .map((l) =>
+            l
+              .replace(/^[-*]\s*/, '')
+              .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+              .replace(/[`*_]/g, '')
+              .trim(),
+          )
+          .filter((l) => l && !l.startsWith('#') && !l.startsWith('>') && !l.startsWith('!'))
+          .slice(0, 6);
       } catch {
         /* 接口被限流或断网时走下面的静态文件 */
       }
       if (!tag) {
-        for (const src of VERSION_SOURCES) {
-          try {
-            const res = await fetch(`${src}?t=${Date.now()}`, { cache: 'no-store' });
-            if (!res.ok) continue;
-            const data = await res.json();
-            const ver = String(data.version || '');
-            if (!ver) continue;
-            tag = ver;
-            date = String(data.date || '');
-            notes = Array.isArray(data.notes) ? data.notes.slice(0, 6).map(String) : [];
-            htmlUrl = `https://github.com/m0ba/reimbursement-assistant/releases/tag/v${ver}`;
-            apkUrl = `${DOWNLOAD_BASE}/v${ver}/reimbursement-${ver}.apk`;
-            break;
-          } catch {
-            /* 换下一个源 */
-          }
+        const data = await Promise.any(VERSION_SOURCES.map((src) => fetchJson(`${src}?t=${Date.now()}`, 5500)));
+        const ver = String(data.version || '');
+        if (ver) {
+          tag = ver;
+          date = String(data.date || '');
+          notes = Array.isArray(data.notes) ? data.notes.slice(0, 6).map(String) : [];
+          htmlUrl = `https://github.com/m0ba/reimbursement-assistant/releases/tag/v${ver}`;
+          apkUrl = `${DOWNLOAD_BASE}/v${ver}/reimbursement-${ver}.apk`;
         }
       }
       if (!tag) throw new Error('tag');
