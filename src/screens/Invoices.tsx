@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useStore } from '../lib/store';
 import type { InvoiceMode } from '../lib/types';
-import { applyInvoiceMode, changePerPage, exportInvoiceInfo, exportInvoicePdf, importInvoiceFiles, regenerateLayout, setInvoiceCategory, startParse } from '../lib/flows';
+import { applyInvoiceMode, changePerPage, exportInvoiceInfo, exportInvoicePdf, finishInvoiceBatch, importInvoiceFiles, regenerateLayout, setInvoiceCategory, startParse } from '../lib/flows';
 import { Sheet } from '../components/Sheet';
 import { Ring } from '../components/TaskBadge';
 import { PdfThumb } from '../components/PdfThumb';
-import { IconDownload, IconInvoice, IconPlus } from '../components/Icons';
+import { IconCheck, IconCopy, IconDownload, IconInvoice, IconPlus } from '../components/Icons';
+import { PdfPages } from '../components/PdfPages';
 import { EmptyState } from '../components/EmptyState';
 
 const MODES: { id: InvoiceMode; title: string; desc: string; cost: string }[] = [
@@ -133,41 +134,58 @@ export default function Invoices() {
       {batch && (
         <>
           <div className="card">
-            <div className="row" style={{ gap: 14, alignItems: 'flex-start' }}>
-              <div style={{ width: 112, flex: 'none' }}>
-                {batch.layoutFileId ? (
-                  <PdfThumb blobKey={files.find((f) => f.id === batch.layoutFileId)?.blobKey || ''} maxWidth={224} />
-                ) : (
-                  <div className="pdfpage shimmer" style={{ aspectRatio: '1 / 1.414' }} />
-                )}
-              </div>
-              <div className="grow" style={{ paddingTop: 2 }}>
-                <div className="row between">
-                  <div style={{ fontWeight: 600 }}>A4 拼版</div>
-                  <Ring value={mergePct} size={22} tone={mergeDone ? 'done' : 'run'} />
-                </div>
+            <div className="row between">
+              <div>
+                <div style={{ fontWeight: 600 }}>A4 拼版</div>
                 <div className="tiny" style={{ marginTop: 2 }}>
                   {invoices.length} 张发票 · {batch.layoutPages || '—'} 页 · 每页 {per} 张
                 </div>
-                <div className="tiny" style={{ marginTop: 2 }}>导出后按实际大小打印，沿虚线裁开即可。</div>
+              </div>
+              <div className="row" style={{ gap: 8 }}>
+                {batch.done ? <span className="chip ok">已完成</span> : <span className="chip warn">草稿</span>}
+                <Ring value={mergePct} size={22} tone={mergeDone ? 'done' : 'run'} />
               </div>
             </div>
-            <div className="row" style={{ gap: 10, marginTop: 12 }}>
-              <button className="btn primary grow" onClick={() => exportInvoicePdf(batch.id)}>
+
+            <div style={{ marginTop: 10 }}>
+              {batch.layoutKey ? (
+                <PdfPages blobKey={batch.layoutKey} />
+              ) : (
+                <div className="shimmer" style={{ height: 180, borderRadius: 10 }} />
+              )}
+            </div>
+            <div className="tiny" style={{ margin: '2px 0 10px' }}>
+              {batch.layoutPages ? `共 ${batch.layoutPages} 页，左右滑动查看` : '正在生成预览…'}
+            </div>
+
+            <div className="row" style={{ gap: 10 }}>
+              {!batch.done && (
+                <button className="btn primary grow" onClick={() => finishInvoiceBatch(batch.id)} disabled={!mergeDone}>
+                  <IconCheck size={18} /> 完成
+                </button>
+              )}
+              <button
+                className={'btn grow ' + (batch.done ? 'primary' : '')}
+                onClick={() => exportInvoicePdf(batch.id)}
+                disabled={!batch.done}
+              >
                 <IconDownload size={18} /> 导出 PDF
               </button>
-              <button className="btn" onClick={() => regenerateLayout(batch.id)}>重新拼版</button>
+              {!batch.done && <button className="btn" onClick={() => regenerateLayout(batch.id)}>重新拼版</button>}
             </div>
+            {!batch.done && (
+              <div className="tiny" style={{ marginTop: 8 }}>点「完成」后才会存入材料库并允许导出；完成后不能再修改。</div>
+            )}
           </div>
 
-          {batch.mode === 'layout' && (
+          {batch.mode === 'layout' && !batch.done && (
             <div className="card">
               <div className="row between">
                 <div>
                   <div style={{ fontWeight: 600 }}>还没有信息表</div>
                   <div className="tiny">可以随时补生成，不需要重新导入</div>
                 </div>
-                <button className="btn ghost" onClick={() => startParse(batch.id, false)}>生成</button>
+                <button className="btn ghost" onClick={() => applyInvoiceMode(batch.id, 'info')}>生成</button>
               </div>
             </div>
           )}
@@ -215,6 +233,7 @@ export default function Invoices() {
                               <select
                                 value={it.category || '其他'}
                                 onChange={(e) => setInvoiceCategory(batch.id, it.id, e.target.value as any)}
+                                disabled={!!batch.done}
                                 style={{ border: 0, background: 'rgba(120,120,128,.1)', borderRadius: 8, padding: '4px 6px', fontSize: 12 }}
                               >
                                 <option>住宿</option>
@@ -230,12 +249,28 @@ export default function Invoices() {
                               )}
                             </td>
                             <td className="mono" style={{ fontSize: 11 }}>
-                              {it.number || (
-                                <button className="chip warn" onClick={() => setEdit({ id: it.id, num: '', amt: '' })}>
-                                  未识别
-                                </button>
-                              )}
-                              {it.duplicate && <span className="chip bad" style={{ marginLeft: 4 }}>重复</span>}
+                              <div className="row" style={{ gap: 6 }}>
+                                <span style={{ wordBreak: 'break-all' }}>
+                                  {it.number || (
+                                    <button className="chip warn" onClick={() => setEdit({ id: it.id, num: '', amt: '' })}>
+                                      未识别
+                                    </button>
+                                  )}
+                                </span>
+                                {it.number && (
+                                  <button
+                                    className="copy-mini"
+                                    aria-label="复制发票号码"
+                                    onClick={async () => {
+                                      await navigator.clipboard.writeText(it.number!);
+                                      useStore.getState().showToast('已复制发票号码');
+                                    }}
+                                  >
+                                    <IconCopy size={12} />
+                                  </button>
+                                )}
+                              </div>
+                              {it.duplicate && <span className="chip bad" style={{ marginTop: 4 }}>重复</span>}
                             </td>
                             <td className="num mono">
                               {it.amount !== undefined ? (

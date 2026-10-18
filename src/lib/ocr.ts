@@ -23,41 +23,6 @@ function modelUrl(modelId: string): string {
   return NATIVE ? `/tessdata/${base}.traineddata` : `/tessdata/${base}.traineddata.gz`;
 }
 
-let preloaded = '';
-
-/** 启动时预热：先把模型读进缓存，再建 worker，避免第一次识别卡住。 */
-export async function preloadOcr(
-  modelId: string,
-  onProgress?: (pct: number, label: string) => void,
-): Promise<void> {
-  if (preloaded === modelId) {
-    onProgress?.(1, '识别模型已就绪');
-    return;
-  }
-  try {
-    const file = modelUrl(modelId);
-    onProgress?.(0.04, '正在准备识别模型');
-    const res = await fetch(file);
-    const total = Number(res.headers.get('content-length') || 0);
-    if (res.body && total) {
-      const reader = res.body.getReader();
-      let got = 0;
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        got += value.length;
-        onProgress?.(0.04 + 0.62 * Math.min(1, got / total), '正在准备识别模型');
-      }
-    }
-    onProgress?.(0.72, '正在安装识别模型');
-    await ensureWorker(modelId);
-    preloaded = modelId;
-    onProgress?.(1, '识别模型已就绪');
-  } catch {
-    onProgress?.(1, '准备失败，可在设置里重试');
-  }
-}
-
 export async function ensureWorker(modelId: string): Promise<Worker> {
   const lang = OCR_LANG[modelId] || 'eng';
   if (worker && workerModel === modelId) return worker;
@@ -90,6 +55,27 @@ export async function ensureWorker(modelId: string): Promise<Worker> {
   worker = w;
   workerModel = modelId;
   return w;
+}
+
+let preloaded = '';
+
+/** 启动时预热：先把模型读进缓存，再建 worker，避免第一次识别卡住。 */
+export async function preloadOcr(
+  modelId: string,
+  onProgress?: (pct: number, label: string) => void,
+): Promise<void> {
+  if (preloaded === modelId) {
+    onProgress?.(1, '识别模型已就绪');
+    return;
+  }
+  try {
+    onProgress?.(0.05, '正在准备识别模型');
+    await ensureWorker(modelId);
+    preloaded = modelId;
+    onProgress?.(1, '识别模型已就绪');
+  } catch {
+    onProgress?.(1, '准备失败，可在设置里重试');
+  }
 }
 
 export async function disposeOcr(): Promise<void> {

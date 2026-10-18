@@ -48,14 +48,14 @@ export function TaskBadge() {
     ? task.step || task.label
     : task.tone === 'warn'
       ? task.step || '还有未处理项'
-      : '已完成';
+      : '处理完成';
 
   return (
     <>
       <AnimatePresence>
         {visible && (
           <motion.button
-            className="taskpill"
+            className="taskpill inline"
             layout
             initial={{ opacity: 0, y: -8, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}

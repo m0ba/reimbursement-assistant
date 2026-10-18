@@ -51,6 +51,9 @@ export interface Batch {
   layoutDone?: boolean;
   layoutPages?: number;
   perPage?: 2 | 4;
+  layoutKey?: string;
+  done?: boolean;
+  doneAt?: number;
   invoices?: InvoiceItem[];
   images?: TrajItem[];
 }

@@ -51,7 +51,7 @@ export async function downloadBlob(blob: Blob, filename: string): Promise<void> 
         import('@capacitor/share'),
       ]);
       const data = await blobToBase64(blob);
-      const saved = await Filesystem.writeFile({ path: filename, data, directory: Directory.Cache });
+      const saved = await Filesystem.writeFile({ path: filename, data, directory: Directory.Data });
       await Share.share({ title: filename, files: [saved.uri], dialogTitle: '保存或发送到…' });
       return;
     } catch {

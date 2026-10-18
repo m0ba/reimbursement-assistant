@@ -109,3 +109,10 @@ export const IconShare = (p: P) => (
     <path d="M5 13v6.2a1.8 1.8 0 0 0 1.8 1.8h10.4a1.8 1.8 0 0 0 1.8-1.8V13" />
   </S>
 );
+
+export const IconCopy = (p: P) => (
+  <S {...p}>
+    <rect x="9" y="9" width="11" height="11" rx="2.2" />
+    <path d="M15 9V6.2A2.2 2.2 0 0 0 12.8 4H6.2A2.2 2.2 0 0 0 4 6.2v6.6A2.2 2.2 0 0 0 6.2 15H9" />
+  </S>
+);

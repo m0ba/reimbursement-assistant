@@ -86,7 +86,10 @@ export default function Materials() {
           <div className="card" key={b.id}>
             <div className="row between">
               <div className="grow" onClick={() => setView(b.kind === 'invoice' ? 'invoices' : 'trajectory', b.id)}>
-                <div style={{ fontWeight: 600 }}>{b.kind === 'invoice' ? '发票批次' : '轨迹批次'} · {n} 个</div>
+                <div className="row" style={{ gap: 6 }}>
+                  <div style={{ fontWeight: 600 }}>{b.kind === 'invoice' ? '发票批次' : '轨迹批次'} · {n} 个</div>
+                  {b.done ? <span className="chip ok">已完成</span> : <span className="chip warn">草稿</span>}
+                </div>
                 <div className="tiny">{fmtDate(b.createdAt)} {b.mode ? ` · ${b.mode === 'layout' ? '仅拼版' : b.mode === 'info' ? '含信息表' : '含校验'}` : ''}</div>
                 {unresolved > 0 && <div className="tiny" style={{ color: '#b26a00', marginTop: 2 }}>{unresolved} 个未识别</div>}
               </div>

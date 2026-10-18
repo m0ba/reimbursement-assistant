@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Reorder, motion, useDragControls } from 'framer-motion';
 import { useStore } from '../lib/store';
 import type { TrajItem } from '../lib/types';
-import { exportTrajectory, importTrajectoryFiles, restoreTraj, setTrajTime, skipAllUnknown, skipTraj } from '../lib/flows';
+import { exportTrajectory, finishTrajectoryBatch, importTrajectoryFiles, restoreTraj, setTrajTime, skipAllUnknown, skipTraj } from '../lib/flows';
 import { Sheet } from '../components/Sheet';
 import { useBlobUrl } from '../components/PdfThumb';
 import { IconPlus, IconRoute } from '../components/Icons';
@@ -10,11 +10,13 @@ import { EmptyState } from '../components/EmptyState';
 
 function TrajCard({
   item,
+  locked,
   onPick,
   onSkip,
   onRestore,
 }: {
   item: TrajItem;
+  locked?: boolean;
   onPick: () => void;
   onSkip: () => void;
   onRestore: () => void;
@@ -23,7 +25,7 @@ function TrajCard({
   const url = useBlobUrl(item.blobKey);
   const cls = 'traj-card' + (item.status === 'unknown' ? ' unknown' : item.status === 'skipped' ? ' skipped' : '');
   return (
-    <Reorder.Item value={item} dragListener={false} dragControls={controls} className={cls} whileDrag={{ scale: 1.04, zIndex: 5, boxShadow: '0 12px 30px rgba(0,0,0,.22)' }}>
+    <Reorder.Item value={item} drag={!locked} dragListener={false} dragControls={controls} className={cls} whileDrag={{ scale: 1.04, zIndex: 5, boxShadow: '0 12px 30px rgba(0,0,0,.22)' }}>
       {url ? (
         <img src={url} alt="" draggable={false} onPointerDown={(e) => controls.start(e)} style={{ touchAction: 'none' }} />
       ) : (
@@ -35,12 +37,14 @@ function TrajCard({
         {item.status === 'unknown' && <b style={{ color: '#b26a00' }}>待选时间</b>}
         {item.status === 'skipped' && <b className="muted">已排到最后</b>}
         {item.status === 'pending' && <b className="muted">识别中…</b>}
-        <div className="row" style={{ gap: 6, marginTop: 2 }}>
-          {item.status !== 'ok' && <button className="chip" onClick={onPick}>选时间</button>}
-          {item.status === 'unknown' && <button className="chip" onClick={onSkip}>排后</button>}
-          {item.status === 'skipped' && <button className="chip" onClick={onRestore}>恢复</button>}
-          {item.status === 'ok' && <button className="chip" onClick={onPick}>改</button>}
-        </div>
+        {!locked && (
+          <div className="row" style={{ gap: 6, marginTop: 2 }}>
+            {item.status !== 'ok' && <button className="chip" onClick={onPick}>选时间</button>}
+            {item.status === 'unknown' && <button className="chip" onClick={onSkip}>排后</button>}
+            {item.status === 'skipped' && <button className="chip" onClick={onRestore}>恢复</button>}
+            {item.status === 'ok' && <button className="chip" onClick={onPick}>改</button>}
+          </div>
+        )}
       </div>
     </Reorder.Item>
   );
@@ -132,13 +136,25 @@ export default function Trajectory() {
                   {busy ? `识别中 ${task.done}/${task.total || images.length}` : `${known} 张按时间排序${skipped ? ` · ${skipped} 张排在最后` : ''}${unknown ? ` · ${unknown} 张待选时间` : ''}`}
                 </div>
               </div>
-              <button className="btn ghost" onClick={() => pickRef.current?.click()}>继续导入</button>
+              <div className="row" style={{ gap: 8 }}>
+                {batch.done ? <span className="chip ok">已完成</span> : null}
+                {!batch.done && <button className="btn ghost" onClick={() => pickRef.current?.click()}>继续导入</button>}
+              </div>
             </div>
             {busy && (
               <div className="progress-track" style={{ marginTop: 10 }}>
                 <i style={{ width: `${Math.round(((task.done || 0) / (task.total || images.length)) * 100)}%` }} />
               </div>
             )}
+            <div className="row" style={{ gap: 10, marginTop: 12 }}>
+              {!batch.done ? (
+                <button className="btn primary grow" onClick={() => finishTrajectoryBatch(batch.id)} disabled={!images.length || busy}>
+                  完成
+                </button>
+              ) : (
+                <div className="tiny grow">已完成，可导出；如需修改请重新导入。</div>
+              )}
+            </div>
           </div>
 
           {unknown > 0 && (
@@ -161,6 +177,7 @@ export default function Trajectory() {
               <TrajCard
                 key={it.id}
                 item={it}
+                locked={!!batch.done}
                 onPick={() => openEditor(it)}
                 onSkip={() => batch && skipTraj(batch.id, it.id)}
                 onRestore={() => batch && restoreTraj(batch.id, it.id)}
@@ -169,7 +186,17 @@ export default function Trajectory() {
           </Reorder.Group>
 
           <div style={{ height: 90 }} />
-          <button className="fab" onClick={() => setExportOpen(true)}>
+          <button
+            className="fab"
+            style={batch.done ? undefined : { background: 'rgba(10,132,255,.35)', boxShadow: 'none' }}
+            onClick={() => {
+              if (!batch.done) {
+                useStore.getState().showToast('先点「完成」，再导出');
+                return;
+              }
+              setExportOpen(true);
+            }}
+          >
             <IconRoute size={18} /> 导出
           </button>
         </>

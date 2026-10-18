@@ -63,26 +63,9 @@ function startMerge(batchId: string) {
       const res = await buildInvoiceA4(items, per, (n) => ctx.setProgress(n, items.length));
       const key = `blob_${uid('pdf')}`;
       await putBlob(key, res.blob);
-      const prev = s().batches.find((b) => b.id === batchId)?.layoutFileId;
-      if (prev) {
-        const old = s().files.find((f) => f.id === prev);
-        if (old) {
-          s().removeFile(prev);
-          await deleteBlob(old.blobKey);
-        }
-      }
-      const fileId = uid('lib');
-      s().addFile({
-        id: fileId,
-        name: `${stamp()}_发票拼版`,
-        blobKey: key,
-        ext: 'pdf',
-        createdAt: Date.now(),
-        pages: res.pages,
-        bytes: res.blob.size,
-        batchId,
-      });
-      s().patchBatch(batchId, { layoutDone: true, layoutFileId: fileId, layoutPages: res.pages });
+      const prevKey = s().batches.find((b) => b.id === batchId)?.layoutKey;
+      if (prevKey) await deleteBlob(prevKey);
+      s().patchBatch(batchId, { layoutDone: true, layoutKey: key, layoutPages: res.pages });
       ctx.setStep('拼版已就绪');
     },
   });
@@ -308,12 +291,62 @@ export async function exportInvoicePdf(batchId: string) {
     s().showToast('拼版还在生成，请稍候');
     return;
   }
-  const f = s().files.find((x) => x.id === batch.layoutFileId);
-  if (!f) return;
-  const blob = await getBlob(f.blobKey);
+  if (!batch.done) {
+    s().showToast('先点「完成」，再导出');
+    return;
+  }
+  const blob = await getBlob(batch.layoutKey || '');
   if (!blob) return;
   const { downloadBlob } = await import('./db');
-  downloadBlob(blob, `${f.name}.pdf`);
+  downloadBlob(blob, `${stamp()}_发票拼版.pdf`);
+}
+
+export async function finishInvoiceBatch(batchId: string) {
+  const batch = s().batches.find((b) => b.id === batchId);
+  if (!batch) return;
+  if (batch.done) return;
+  if (!batch.layoutDone || !batch.layoutKey) {
+    s().showToast('拼版还没完成，请稍等');
+    return;
+  }
+  if (!batch.layoutFileId) {
+    const blob = await getBlob(batch.layoutKey);
+    if (blob) {
+      const id = uid('lib');
+      s().addFile({
+        id,
+        name: `${stamp()}_发票拼版`,
+        blobKey: batch.layoutKey,
+        ext: 'pdf',
+        createdAt: Date.now(),
+        pages: batch.layoutPages,
+        bytes: blob.size,
+        batchId,
+      });
+      s().patchBatch(batchId, { layoutFileId: id });
+    }
+  }
+  if (batch.mode && batch.mode !== 'layout' && batch.invoices?.length) {
+    const blob = await buildInvoiceInfoPdf(batch.invoices, batch.name);
+    const key = `blob_${uid('info')}`;
+    await putBlob(key, blob);
+    s().addFile({
+      id: uid('lib'),
+      name: `${stamp()}_发票信息表`,
+      blobKey: key,
+      ext: 'pdf',
+      createdAt: Date.now(),
+      bytes: blob.size,
+      batchId,
+    });
+  }
+  s().patchBatch(batchId, { done: true, doneAt: Date.now() });
+  s().showToast('已完成，文件已存入材料库');
+}
+
+export function finishTrajectoryBatch(batchId: string) {
+  s().patchBatch(batchId, { done: true, doneAt: Date.now() });
+  s().showToast('已完成，可以导出了');
 }
 
 export async function exportInvoiceInfo(batchId: string, format: 'pdf' | 'csv' | 'copy') {
@@ -331,11 +364,6 @@ export async function exportInvoiceInfo(batchId: string, format: 'pdf' | 'csv' |
     return;
   }
   const blob = await buildInvoiceInfoPdf(batch.invoices, batch.name);
-  const key = `blob_${uid('info')}`;
-  await putBlob(key, blob);
-  s().addFile({
-    id: uid('lib'), name: `${stamp()}_发票信息表`, blobKey: key, ext: 'pdf', createdAt: Date.now(), bytes: blob.size, batchId,
-  });
   const { downloadBlob } = await import('./db');
   downloadBlob(blob, `${stamp()}_发票信息表.pdf`);
 }
@@ -343,6 +371,10 @@ export async function exportInvoiceInfo(batchId: string, format: 'pdf' | 'csv' |
 export async function exportTrajectory(batchId: string, format: 'pdf' | 'docx') {
   const batch = s().batches.find((b) => b.id === batchId);
   if (!batch?.images?.length) return;
+  if (!batch.done) {
+    s().showToast('先点「完成」，再导出');
+    return;
+  }
   const unknown = batch.images.filter((i) => i.status === 'unknown');
   s().showToast(unknown.length ? `还有 ${unknown.length} 张未识别，已排到最后` : '正在导出');
   const { downloadBlob } = await import('./db');
