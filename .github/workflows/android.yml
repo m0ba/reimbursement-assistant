@@ -1,0 +1,93 @@
+name: Build Android APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install Android SDK packages
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          SDKMANAGER="$(ls "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)"
+          echo "sdkmanager=$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+          "$SDKMANAGER" --install "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+          ls "$ANDROID_HOME/platforms"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web assets
+        run: npm run build
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Set version from tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i "s/versionName \".*\"/versionName \"$VERSION\"/" android/app/build.gradle
+          sed -i "s/versionCode .*/versionCode ${{ github.run_number }}/" android/app/build.gradle
+
+      - name: Assemble APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Collect APK
+        run: |
+          mkdir -p release
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ -z "$VERSION" ] || [ "$VERSION" = "$GITHUB_REF_NAME" ] && [ "$GITHUB_REF_TYPE" != "tag" ]; then
+            VERSION="dev-${GITHUB_SHA::7}"
+          fi
+          cp android/app/build/outputs/apk/debug/app-debug.apk "release/reimbursement-${VERSION}.apk"
+          ls -lh release
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: release/*.apk
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.apk
+          name: 报销助手 ${{ github.ref_name }}
+          body: |
+            ## 报销助手 ${{ github.ref_name }}
+
+            本地优先的报销材料工具：发票 A4 拼版、发票信息表、行程轨迹图，全部在设备上处理，不上传。
+
+            - 安装包：`reimbursement-${{ github.ref_name }}.apk`（debug 签名，可直接安装）
+            - 安装时需要允许「安装未知来源应用」
+            - 首次打开会引导阅读说明并预热 OCR 模型
+
+            完整改动见 [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)。
