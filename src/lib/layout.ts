@@ -3,12 +3,16 @@ import { A4H, A4W } from './merge';
 import { getBlob } from './db';
 import type { TrajItem } from './types';
 import { embedCjk } from './font';
-import { normalizeTrajImage } from './trajimg';
 
 const MM = 72 / 25.4;
 const COLS = 5;
 const ROWS = 4;
 const PER_PAGE = COLS * ROWS;
+
+async function imageBytes(blob: Blob): Promise<{ kind: 'jpg' | 'png'; bytes: Uint8Array }> {
+  if (blob.type.includes('png')) return { kind: 'png', bytes: new Uint8Array(await blob.arrayBuffer()) };
+  return { kind: 'jpg', bytes: new Uint8Array(await blob.arrayBuffer()) };
+}
 
 export function sortTrajectory(items: TrajItem[]): TrajItem[] {
   const known = items.filter((i) => i.status === 'ok' && i.date);
@@ -17,12 +21,7 @@ export function sortTrajectory(items: TrajItem[]): TrajItem[] {
   return [...known, ...unknown];
 }
 
-export async function buildTrajectoryPdf(
-  items: TrajItem[],
-  opts: { trim?: boolean } = {},
-  onProgress?: (done: number) => void,
-): Promise<{ blob: Blob; pages: number }> {
-  const trim = opts.trim !== false;
+export async function buildTrajectoryPdf(items: TrajItem[], onProgress?: (done: number) => void): Promise<{ blob: Blob; pages: number }> {
   const ordered = items;
   const doc = await PDFDocument.create();
   doc.setTitle('轨迹图');
@@ -30,7 +29,7 @@ export async function buildTrajectoryPdf(
 
   const marginX = 8 * MM;
   const marginY = 8 * MM;
-  const gap = 2.6 * MM;
+  const gap = 2.5 * MM;
   const cellW = (A4W - marginX * 2 - gap * (COLS - 1)) / COLS;
   const cellH = (A4H - marginY * 2 - gap * (ROWS - 1)) / ROWS;
 
@@ -44,8 +43,8 @@ export async function buildTrajectoryPdf(
     const blob = await getBlob(ordered[idx].blobKey);
     if (blob) {
       try {
-        const { type, data } = await normalizeTrajImage(blob, trim);
-        const img = type === 'png' ? await doc.embedPng(data) : await doc.embedJpg(data);
+        const { kind, bytes } = await imageBytes(blob);
+        const img = kind === 'png' ? await doc.embedPng(bytes) : await doc.embedJpg(bytes);
         const s = Math.min(cellW / img.width, cellH / img.height);
         const w = img.width * s;
         const h = img.height * s;

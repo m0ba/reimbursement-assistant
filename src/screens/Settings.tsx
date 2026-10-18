@@ -8,7 +8,10 @@ import { IconBack, IconCheck, IconDownload, IconTrash } from '../components/Icon
 import { APP_VERSION } from '../lib/version';
 
 const RELEASE_API = 'https://api.github.com/repos/m0ba/reimbursement-assistant/releases/latest';
-const RAW_VERSION = 'https://raw.githubusercontent.com/m0ba/reimbursement-assistant/main/public/version.json';
+const VERSION_SOURCES = [
+  'https://cdn.jsdelivr.net/gh/m0ba/reimbursement-assistant@main/public/version.json',
+  'https://raw.githubusercontent.com/m0ba/reimbursement-assistant/main/public/version.json',
+];
 const DOWNLOAD_BASE = 'https://github.com/m0ba/reimbursement-assistant/releases/download';
 
 type Release = {
@@ -86,15 +89,22 @@ export default function Settings() {
         /* 接口被限流或断网时走下面的静态文件 */
       }
       if (!tag) {
-        const res = await fetch(`${RAW_VERSION}?t=${Date.now()}`, { cache: 'no-store' });
-        if (!res.ok) throw new Error(String(res.status));
-        const data = await res.json();
-        tag = String(data.version || '');
-        date = String(data.date || '');
-        notes = Array.isArray(data.notes) ? data.notes.slice(0, 6).map(String) : [];
-        if (tag) {
-          htmlUrl = `https://github.com/m0ba/reimbursement-assistant/releases/tag/v${tag}`;
-          apkUrl = `${DOWNLOAD_BASE}/v${tag}/reimbursement-${tag}.apk`;
+        for (const src of VERSION_SOURCES) {
+          try {
+            const res = await fetch(`${src}?t=${Date.now()}`, { cache: 'no-store' });
+            if (!res.ok) continue;
+            const data = await res.json();
+            const ver = String(data.version || '');
+            if (!ver) continue;
+            tag = ver;
+            date = String(data.date || '');
+            notes = Array.isArray(data.notes) ? data.notes.slice(0, 6).map(String) : [];
+            htmlUrl = `https://github.com/m0ba/reimbursement-assistant/releases/tag/v${ver}`;
+            apkUrl = `${DOWNLOAD_BASE}/v${ver}/reimbursement-${ver}.apk`;
+            break;
+          } catch {
+            /* 换下一个源 */
+          }
         }
       }
       if (!tag) throw new Error('tag');
