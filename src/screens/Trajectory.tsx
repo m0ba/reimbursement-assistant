@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Reorder, motion, useDragControls } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useStore } from '../lib/store';
 import type { TrajItem } from '../lib/types';
 import { appendTrajectoryFiles, exportTrajectory, finishTrajectoryBatch, importTrajectoryFiles, restoreTraj, setTrajTime, skipAllUnknown, skipTraj } from '../lib/flows';
@@ -21,13 +21,12 @@ function TrajCard({
   onSkip: () => void;
   onRestore: () => void;
 }) {
-  const controls = useDragControls();
   const url = useBlobUrl(item.blobKey);
   const cls = 'traj-card' + (item.status === 'unknown' ? ' unknown' : item.status === 'skipped' ? ' skipped' : '');
   return (
-    <Reorder.Item value={item} drag={!locked} dragListener={false} dragControls={controls} className={cls} whileDrag={{ scale: 1.04, zIndex: 5, boxShadow: '0 12px 30px rgba(0,0,0,.22)' }}>
+    <div className={cls}>
       {url ? (
-        <img src={url} alt="" draggable={false} onPointerDown={(e) => controls.start(e)} style={{ touchAction: 'none' }} />
+        <img src={url} alt="" draggable={false} />
       ) : (
         <div style={{ aspectRatio: '9 / 19' }} className="shimmer" />
       )}
@@ -46,7 +45,7 @@ function TrajCard({
           </div>
         )}
       </div>
-    </Reorder.Item>
+    </div>
   );
 }
 
@@ -54,7 +53,6 @@ export default function Trajectory() {
   const batches = useStore((s) => s.batches);
   const activeId = useStore((s) => s.activeBatchId);
   const setView = useStore((s) => s.setView);
-  const patchBatch = useStore((s) => s.patchBatch);
   const task = useStore((s) => s.task);
   const per = useStore((s) => s.settings.trajPerPage || 20);
   const setSettings = useStore((s) => s.setSettings);
@@ -170,13 +168,7 @@ export default function Trajectory() {
             </div>
           )}
 
-          <Reorder.Group
-            as="div"
-            axis="y"
-            className="traj-grid"
-            values={images}
-            onReorder={(next) => batch && patchBatch(batch.id, { images: next as TrajItem[] })}
-          >
+          <div className="traj-grid">
             {images.map((it) => (
               <TrajCard
                 key={it.id}
@@ -187,7 +179,7 @@ export default function Trajectory() {
                 onRestore={() => batch && restoreTraj(batch.id, it.id)}
               />
             ))}
-          </Reorder.Group>
+          </div>
 
           <div style={{ height: 90 }} />
           <button

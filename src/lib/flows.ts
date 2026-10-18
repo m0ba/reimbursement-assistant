@@ -8,7 +8,7 @@ import { parseInvoiceText } from './parse';
 import { verifyInvoiceQr } from './qr';
 import { readHeaderTime } from './ocr';
 import { enqueue } from './tasks';
-import { buildTrajectoryPdf } from './layout';
+import { buildTrajectoryPdf, sortTrajectory } from './layout';
 import { buildInvoiceInfoPdf, buildTrajectoryDocx, invoiceCsv } from './exports';
 import { getBlob } from './db';
 
@@ -303,16 +303,22 @@ export function startOcr(batchId: string) {
 export function setTrajTime(batchId: string, itemId: string, value: string) {
   const [d, t] = value.split('T');
   s().patchBatch(batchId, (b) => ({
-    images: (b.images || []).map((it) =>
-      it.id === itemId ? { ...it, status: 'ok', date: d, time: t || '00:00', manual: true } : it,
+    images: sortTrajectory(
+      (b.images || []).map((it) =>
+        it.id === itemId ? { ...it, status: 'ok', date: d, time: t || '00:00', manual: true } : it,
+      ),
     ),
   }));
 }
 
 export function skipTraj(batchId: string, itemId: string) {
-  s().patchBatch(batchId, (b) => ({
-    images: (b.images || []).map((it) => (it.id === itemId ? { ...it, status: 'skipped', date: undefined, time: undefined } : it)),
-  }));
+  s().patchBatch(batchId, (b) => {
+    const list = b.images || [];
+    const target = list.find((it) => it.id === itemId);
+    if (!target) return { images: list };
+    const rest = list.filter((it) => it.id !== itemId).map((it) => ({ ...it }));
+    return { images: [...rest, { ...target, status: 'skipped', date: undefined, time: undefined, manual: true }] };
+  });
 }
 
 export function restoreTraj(batchId: string, itemId: string) {
