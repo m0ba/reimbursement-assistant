@@ -295,9 +295,6 @@ export default function Invoices() {
                     </tbody>
                   </table>
                   </div>
-                  <div className="tiny" style={{ marginTop: 8 }}>
-                    类型可以直接点开改；「复制」适合粘进财务系统，CSV 方便再编辑，PDF 适合留档打印。
-                  </div>
                   <div className="divider" />
                   <div className="row between">
                     <span className="tiny">合计</span>
