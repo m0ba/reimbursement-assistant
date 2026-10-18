@@ -4,7 +4,7 @@ import { clearAllBlobs, putBlob } from '../lib/db';
 import { disposeOcr } from '../lib/ocr';
 import { Confirm, Sheet } from '../components/Sheet';
 import { Ring } from '../components/TaskBadge';
-import { IconBack, IconCheck, IconDownload, IconTrash } from '../components/Icons';
+import { IconCheck, IconDownload, IconRefresh, IconTrash } from '../components/Icons';
 import { APP_VERSION } from '../lib/version';
 
 const RELEASE_API = 'https://api.github.com/repos/m0ba/reimbursement-assistant/releases/latest';
@@ -233,21 +233,10 @@ export default function Settings() {
       <div className="card">
         <div className="row between"><span>版本</span><span className="muted mono">{APP_VERSION}</span></div>
         <div className="divider" />
-        <button
-          className="row between"
-          style={{ width: '100%', padding: '4px 0' }}
-          onClick={checkUpdate}
-          disabled={checking}
-        >
-          <span style={{ fontWeight: 600 }}>检查更新</span>
-          <span className="row" style={{ gap: 6 }}>
-            {checking && <span className="tiny muted">正在检查…</span>}
-            <span style={{ display: 'inline-flex', transform: 'rotate(180deg)', color: 'var(--text3)' }}>
-              <IconBack size={15} />
-            </span>
-          </span>
+        <button className="btn wide tint" onClick={checkUpdate} disabled={checking}>
+          <IconRefresh size={18} className={checking ? 'spin' : ''} /> {checking ? '正在检查…' : '检查更新'}
         </button>
-        <p className="tiny" style={{ marginBottom: 0 }}>
+        <p className="tiny" style={{ margin: '10px 2px 0' }}>
           发票与截图不会上传；检查更新只读取公开的版本信息。
         </p>
       </div>

@@ -175,10 +175,15 @@ button { border: 0; background: none; padding: 0; cursor: pointer; }
 }
 .btn:active { transform: scale(0.97); }
 .btn.primary { background: var(--blue); color: #fff; }
+.btn.tint { background: rgba(10, 132, 255, 0.12); color: var(--blue); }
+.btn.tint:disabled { opacity: 1; color: rgba(10, 132, 255, 0.6); }
 .btn.ghost { background: transparent; color: var(--blue); }
 .btn.danger { color: var(--red); }
 .btn.wide { width: 100%; }
 .btn:disabled { opacity: 0.4; }
+
+.spin { animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .sheet-backdrop {
   position: fixed; inset: 0; z-index: 60;

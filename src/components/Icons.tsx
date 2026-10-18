@@ -116,3 +116,10 @@ export const IconCopy = (p: P) => (
     <path d="M15 9V6.2A2.2 2.2 0 0 0 12.8 4H6.2A2.2 2.2 0 0 0 4 6.2v6.6A2.2 2.2 0 0 0 6.2 15H9" />
   </S>
 );
+
+export const IconRefresh = (p: P) => (
+  <S {...p}>
+    <path d="M19.6 12a7.6 7.6 0 1 1-2.2-5.4" />
+    <path d="M20 4.4v4.2h-4.2" />
+  </S>
+);
