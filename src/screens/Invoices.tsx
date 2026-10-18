@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useStore } from '../lib/store';
 import type { InvoiceMode } from '../lib/types';
-import { applyInvoiceMode, changePerPage, exportInvoiceInfo, exportInvoicePdf, finishInvoiceBatch, importInvoiceFiles, regenerateLayout, setInvoiceCategory, startParse } from '../lib/flows';
+import { appendInvoiceFiles, applyInvoiceMode, changePerPage, exportInvoiceInfo, exportInvoicePdf, finishInvoiceBatch, importInvoiceFiles, setInvoiceCategory, startParse } from '../lib/flows';
 import { Sheet } from '../components/Sheet';
 import { Ring } from '../components/TaskBadge';
 import { PdfThumb } from '../components/PdfThumb';
@@ -28,6 +28,7 @@ export default function Invoices() {
   const [modeOpen, setModeOpen] = useState(false);
   const [mode, setMode] = useState<InvoiceMode>(lastMode);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [appendId, setAppendId] = useState<string | null>(null);
   const [edit, setEdit] = useState<{ id: string; num: string; amt: string } | null>(null);
 
   const batch = useMemo(() => {
@@ -113,7 +114,15 @@ export default function Invoices() {
         multiple
         hidden
         onChange={(e) => {
-          onPick(e.target.files);
+          const list = e.target.files;
+          const target = appendId;
+          setAppendId(null);
+          if (target && list?.length) {
+            const arr = Array.from(list).filter((f) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
+            if (arr.length) void appendInvoiceFiles(target, arr);
+          } else {
+            void onPick(list);
+          }
           e.target.value = '';
         }}
       />
@@ -164,7 +173,7 @@ export default function Invoices() {
                   <button className="btn primary grow" onClick={() => finishInvoiceBatch(batch.id)} disabled={!mergeDone}>
                     <IconCheck size={18} /> 完成
                   </button>
-                  <button className="btn" onClick={() => regenerateLayout(batch.id)}>重新拼版</button>
+                  <button className="btn" onClick={() => { setAppendId(batch.id); pickRef.current?.click(); }}>继续导入</button>
                 </>
               ) : (
                 <button className="btn primary wide" onClick={() => exportInvoicePdf(batch.id)}>

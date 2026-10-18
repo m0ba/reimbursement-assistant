@@ -49,6 +49,30 @@ export async function importInvoiceFiles(files: File[]): Promise<Batch> {
   return batch;
 }
 
+export async function appendInvoiceFiles(batchId: string, files: File[]): Promise<void> {
+  const batch = s().batches.find((b) => b.id === batchId);
+  if (!batch) return;
+  const sorted = [...files].sort((a, b) => a.lastModified - b.lastModified);
+  const added: InvoiceItem[] = [];
+  for (const f of sorted) {
+    const key = `blob_${uid('f')}`;
+    await putBlob(key, f);
+    added.push({
+      id: uid('i'),
+      fileName: f.name,
+      blobKey: key,
+      lastModified: f.lastModified,
+      status: 'pending',
+      pages: 1,
+    });
+  }
+  if (!added.length) return;
+  s().patchBatch(batchId, { invoices: [...(batch.invoices || []), ...added], layoutDone: false });
+  startMerge(batchId);
+  if (batch.mode && batch.mode !== 'layout') startParse(batchId, batch.mode === 'verify');
+  s().showToast(`已加入 ${added.length} 张发票`);
+}
+
 function startMerge(batchId: string) {
   enqueue({
     kind: 'merge',

@@ -267,9 +267,6 @@ export default function Settings() {
             去下载
           </button>
         </div>
-        <div className="tiny" style={{ marginTop: 8, marginBottom: 2 }}>
-          会在浏览器里打开 GitHub 的 APK 下载地址，装好后直接覆盖旧版本。
-        </div>
       </Sheet>
 
       <div className="section-title">帮助</div>

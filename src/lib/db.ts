@@ -46,16 +46,29 @@ export async function downloadBlob(blob: Blob, filename: string): Promise<void> 
   const cap = (globalThis as any).Capacitor;
   if (cap?.isNativePlatform?.()) {
     try {
-      const [{ Filesystem, Directory }, { Share }] = await Promise.all([
-        import('@capacitor/filesystem'),
-        import('@capacitor/share'),
-      ]);
+      const { registerPlugin } = await import('@capacitor/core');
+      const SaveFile = registerPlugin<{
+        save: (o: { fileName: string; base64: string; mime: string }) => Promise<{ path: string }>;
+      }>('SaveFile');
       const data = await blobToBase64(blob);
-      const saved = await Filesystem.writeFile({ path: filename, data, directory: Directory.Data });
-      await Share.share({ title: filename, files: [saved.uri], dialogTitle: '保存或发送到…' });
+      await SaveFile.save({ fileName: filename, base64: data, mime: blob.type || 'application/octet-stream' });
+      const { useStore } = await import('./store');
+      useStore.getState().showToast(`已保存到「下载」：${filename}`);
       return;
     } catch {
-      /* 落到浏览器下载 */
+      /* 老系统保存失败时，退回系统分享 */
+      try {
+        const [{ Filesystem, Directory }, { Share }] = await Promise.all([
+          import('@capacitor/filesystem'),
+          import('@capacitor/share'),
+        ]);
+        const data = await blobToBase64(blob);
+        const saved = await Filesystem.writeFile({ path: filename, data, directory: Directory.Data });
+        await Share.share({ title: filename, files: [saved.uri], dialogTitle: '保存或发送到…' });
+        return;
+      } catch {
+        /* 落到浏览器下载 */
+      }
     }
   }
   const url = URL.createObjectURL(blob);
