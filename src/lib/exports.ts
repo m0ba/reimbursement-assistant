@@ -4,7 +4,7 @@ import { A4H, A4W } from './merge';
 import { embedCjk } from './font';
 import { getBlob } from './db';
 import type { InvoiceItem, TrajItem } from './types';
-import { sortTrajectory } from './layout';
+import { sortTrajectory, TRAJ_GRIDS } from './layout';
 
 const MM = 72 / 25.4;
 
@@ -161,13 +161,15 @@ async function imageMeta(blob: Blob): Promise<{ data: Uint8Array; w: number; h: 
   }
 }
 
-export async function buildTrajectoryDocx(items: TrajItem[]): Promise<Blob> {
+export async function buildTrajectoryDocx(items: TrajItem[], opts: { perPage?: number } = {}): Promise<Blob> {
   const ordered = items;
-  const perPage = 20;
-  const cols = 5;
-  const rows = 4;
-  const cellWpx = 140;
-  const cellHpx = 250;
+  const grid = TRAJ_GRIDS[opts.perPage || 20] || TRAJ_GRIDS[20];
+  const cols = grid.cols;
+  const rows = grid.rows;
+  const perPage = cols * rows;
+  const cellWpx = Math.floor(733 / cols) - 6;
+  const rowHpx = Math.floor(1010 / rows);
+  const cellHpx = rowHpx - 22;
   const pages: Table[] = [];
 
   for (let p = 0; p * perPage < Math.max(ordered.length, 1); p++) {
@@ -202,13 +204,13 @@ export async function buildTrajectoryDocx(items: TrajItem[]): Promise<Blob> {
         }
         cells.push(
           new TableCell({
-            width: { size: 20, type: WidthType.PERCENTAGE },
+            width: { size: Math.round(100 / cols), type: WidthType.PERCENTAGE },
             margins: { top: 40, bottom: 40, left: 40, right: 40 },
             children: [child],
           }),
         );
       }
-      trs.push(new TableRow({ children: cells, height: { value: 3800, rule: 'atLeast' } as any }));
+      trs.push(new TableRow({ children: cells, height: { value: rowHpx * 15, rule: 'atLeast' } as any }));
     }
     pages.push(
       new Table({

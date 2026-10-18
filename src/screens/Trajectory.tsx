@@ -56,6 +56,8 @@ export default function Trajectory() {
   const setView = useStore((s) => s.setView);
   const patchBatch = useStore((s) => s.patchBatch);
   const task = useStore((s) => s.task);
+  const per = useStore((s) => s.settings.trajPerPage || 20);
+  const setSettings = useStore((s) => s.setSettings);
   const pickRef = useRef<HTMLInputElement>(null);
   const [editItem, setEditItem] = useState<TrajItem | null>(null);
   const [value, setValue] = useState('');
@@ -98,7 +100,7 @@ export default function Trajectory() {
     <div className="page">
       <div className="large-title">轨迹图</div>
       <div className="subtitle">
-        把行程截图按时间排成能直接打印的 A4 页，每页 20 张、页内没有多余文字，打印出来直接附在报销单后面。只按截图里的日期排序，识别不到会让你自己选，不会乱排。
+        把行程截图按时间排成能直接打印的 A4 页，默认每页 20 张、页内没有多余文字，打印出来直接附在报销单后面。只按截图里的日期排序，识别不到会让你自己选，不会乱排。
       </div>
 
       <input
@@ -221,13 +223,21 @@ export default function Trajectory() {
         open={exportOpen}
         onClose={() => setExportOpen(false)}
         title="导出轨迹图"
-        lead="默认导出 PDF，每页 20 张、页内无文字；需要交给别人编辑时可选 Word。没有识别时间的图会排在最后，不影响导出。"
+        lead="默认导出 PDF，页内无文字；需要交给别人编辑时可选 Word。没有识别时间的图会排在最后，不影响导出。"
       >
         {unknown > 0 && (
           <div className="card" style={{ background: 'rgba(255,159,10,.09)' }}>
             <div className="tiny" style={{ color: '#8a5300' }}>还有 {unknown} 张未识别，将排在最后</div>
           </div>
         )}
+        <div className="seg">
+          <button className={per === 20 ? 'on' : ''} onClick={() => setSettings({ trajPerPage: 20 })}>每页 20 张</button>
+          <button className={per === 15 ? 'on' : ''} onClick={() => setSettings({ trajPerPage: 15 })}>每页 15 张</button>
+          <button className={per === 12 ? 'on' : ''} onClick={() => setSettings({ trajPerPage: 12 })}>每页 12 张</button>
+        </div>
+        <div className="tiny" style={{ margin: '8px 4px 14px' }}>
+          20 张排 5×4，最省纸；15 张排 5×3，每张大约大两成；12 张排 4×3，看得最清楚。三种都按原图比例，不裁剪。
+        </div>
         <div className="row" style={{ gap: 10 }}>
           <motion.button
             className="btn primary grow"

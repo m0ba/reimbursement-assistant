@@ -69,7 +69,7 @@ export const useStore = create<Store>()(
       activeBatchId: null,
       batches: [],
       files: [],
-      settings: { ocrModelId: 'eng-fast', installedModels: ['eng-fast'], lastInvoiceMode: 'info', perPage: 2, introSeen: false },
+      settings: { ocrModelId: 'eng-fast', installedModels: ['eng-fast'], lastInvoiceMode: 'info', perPage: 2, introSeen: false, trajPerPage: 20 },
       task: emptyTask,
       toast: null,
       setView: (view, batchId) => {
@@ -100,7 +100,7 @@ export const useStore = create<Store>()(
           files: [],
           activeBatchId: null,
           view: 'home',
-          settings: { ocrModelId: 'eng-fast', installedModels: ['eng-fast'], lastInvoiceMode: 'info', perPage: 2, introSeen: true },
+          settings: { ocrModelId: 'eng-fast', installedModels: ['eng-fast'], lastInvoiceMode: 'info', perPage: 2, introSeen: true, trajPerPage: 20 },
           task: emptyTask,
         }),
     }),

@@ -5,9 +5,11 @@ import type { TrajItem } from './types';
 import { embedCjk } from './font';
 
 const MM = 72 / 25.4;
-const COLS = 5;
-const ROWS = 4;
-const PER_PAGE = COLS * ROWS;
+export const TRAJ_GRIDS: Record<number, { cols: number; rows: number }> = {
+  20: { cols: 5, rows: 4 },
+  15: { cols: 5, rows: 3 },
+  12: { cols: 4, rows: 3 },
+};
 
 async function imageBytes(blob: Blob): Promise<{ kind: 'jpg' | 'png'; bytes: Uint8Array }> {
   if (blob.type.includes('png')) return { kind: 'png', bytes: new Uint8Array(await blob.arrayBuffer()) };
@@ -21,7 +23,15 @@ export function sortTrajectory(items: TrajItem[]): TrajItem[] {
   return [...known, ...unknown];
 }
 
-export async function buildTrajectoryPdf(items: TrajItem[], onProgress?: (done: number) => void): Promise<{ blob: Blob; pages: number }> {
+export async function buildTrajectoryPdf(
+  items: TrajItem[],
+  opts: { perPage?: number } = {},
+  onProgress?: (done: number) => void,
+): Promise<{ blob: Blob; pages: number }> {
+  const grid = TRAJ_GRIDS[opts.perPage || 20] || TRAJ_GRIDS[20];
+  const COLS = grid.cols;
+  const ROWS = grid.rows;
+  const PER_PAGE = COLS * ROWS;
   const ordered = items;
   const doc = await PDFDocument.create();
   doc.setTitle('轨迹图');

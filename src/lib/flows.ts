@@ -378,14 +378,15 @@ export async function exportTrajectory(batchId: string, format: 'pdf' | 'docx') 
   const unknown = batch.images.filter((i) => i.status === 'unknown');
   s().showToast(unknown.length ? `还有 ${unknown.length} 张未识别，已排到最后` : '正在导出');
   const { downloadBlob } = await import('./db');
+  const perPage = s().settings.trajPerPage || 20;
   if (format === 'pdf') {
-    const res = await buildTrajectoryPdf(batch.images);
+    const res = await buildTrajectoryPdf(batch.images, { perPage });
     const key = `blob_${uid('trajpdf')}`;
     await putBlob(key, res.blob);
     s().addFile({ id: uid('lib'), name: `${stamp()}_轨迹图`, blobKey: key, ext: 'pdf', createdAt: Date.now(), pages: res.pages, bytes: res.blob.size, batchId });
     downloadBlob(res.blob, `${stamp()}_轨迹图.pdf`);
   } else {
-    const blob = await buildTrajectoryDocx(batch.images);
+    const blob = await buildTrajectoryDocx(batch.images, { perPage });
     const key = `blob_${uid('trajdoc')}`;
     await putBlob(key, blob);
     s().addFile({ id: uid('lib'), name: `${stamp()}_轨迹图`, blobKey: key, ext: 'docx', createdAt: Date.now(), bytes: blob.size, batchId });

@@ -86,6 +86,7 @@ export interface Settings {
   lastInvoiceMode: InvoiceMode;
   perPage: 2 | 4;
   introSeen: boolean;
+  trajPerPage: 20 | 15 | 12;
 }
 
 export interface TaskState {
