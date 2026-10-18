@@ -1,8 +1,8 @@
 {
-  "version": "0.3.1",
+  "version": "0.3.2",
   "date": "2026-10-18",
   "notes": [
-    "macOS 版补上本地签名，Apple 芯片上可以直接运行",
+    "macOS 桌面包改为打包后本地签名再压缩，解压即可运行",
     "Windows 免安装 exe 首次运行如被 SmartScreen 拦截，点「更多信息」→「仍要运行」"
   ]
 }

@@ -1,12 +1,12 @@
 {
   "name": "reimbursement-desktop",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "description": "报销助手桌面版（免安装）",
   "main": "main.cjs",
   "scripts": {
     "start": "electron .",
-    "dist:mac": "electron-builder --mac zip --x64 --arm64 --publish never",
+    "dist:mac": "bash build-mac.sh",
     "dist:win": "electron-builder --win portable --publish never"
   },
   "devDependencies": {
@@ -38,7 +38,7 @@
         "zip"
       ],
       "category": "public.app-category.finance",
-      "identity": "-",
+      "identity": null,
       "artifactName": "reimbursement-${version}-mac-${arch}.${ext}"
     },
     "dmg": {
