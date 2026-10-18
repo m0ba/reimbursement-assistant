@@ -310,9 +310,6 @@ export default function Invoices() {
             </div>
           )}
 
-          <button className="btn wide" style={{ marginTop: 4 }} onClick={() => pickRef.current?.click()}>
-            <IconInvoice size={18} /> 再导入一批发票
-          </button>
         </>
       )}
 
