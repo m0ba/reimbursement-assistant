@@ -26,9 +26,27 @@ const MIME = {
   '.pdf': 'application/pdf',
 };
 
-function startServer() {
+const BASE_PORT = 47821;
+const MAX_TRIES = 5;
+
+function listen(server, port) {
   return new Promise((resolve, reject) => {
-    const server = http.createServer((req, res) => {
+    const onError = (err) => {
+      server.removeListener('listening', onListening);
+      reject(err);
+    };
+    const onListening = () => {
+      server.removeListener('error', onError);
+      resolve(server.address().port);
+    };
+    server.once('error', onError);
+    server.once('listening', onListening);
+    server.listen(port, '127.0.0.1');
+  });
+}
+
+async function startServer() {
+  const server = http.createServer((req, res) => {
       const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
       let file = path.join(ROOT, urlPath === '/' ? 'index.html' : urlPath);
       if (!file.startsWith(ROOT)) {
@@ -45,10 +63,17 @@ function startServer() {
         res.statusCode = 500;
         res.end('read error');
       }
-    });
-    server.on('error', reject);
-    server.listen(0, '127.0.0.1', () => resolve(server.address().port));
   });
+
+  // 端口固定，保证 IndexedDB 的 origin 不变，重启后数据还在
+  for (let i = 0; i < MAX_TRIES; i++) {
+    try {
+      return await listen(server, BASE_PORT + i);
+    } catch (e) {
+      if (i === MAX_TRIES - 1) throw e;
+    }
+  }
+  throw new Error('no port');
 }
 
 if (!app.requestSingleInstanceLock()) {
