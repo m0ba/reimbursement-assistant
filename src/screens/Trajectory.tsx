@@ -5,7 +5,7 @@ import type { TrajItem } from '../lib/types';
 import { exportTrajectory, finishTrajectoryBatch, importTrajectoryFiles, restoreTraj, setTrajTime, skipAllUnknown, skipTraj } from '../lib/flows';
 import { Sheet } from '../components/Sheet';
 import { useBlobUrl } from '../components/PdfThumb';
-import { IconPlus, IconRoute } from '../components/Icons';
+import { IconCheck, IconDownload, IconPlus, IconRoute } from '../components/Icons';
 import { EmptyState } from '../components/EmptyState';
 
 function TrajCard({
@@ -146,15 +146,9 @@ export default function Trajectory() {
                 <i style={{ width: `${Math.round(((task.done || 0) / (task.total || images.length)) * 100)}%` }} />
               </div>
             )}
-            <div className="row" style={{ gap: 10, marginTop: 12 }}>
-              {!batch.done ? (
-                <button className="btn primary grow" onClick={() => finishTrajectoryBatch(batch.id)} disabled={!images.length || busy}>
-                  完成
-                </button>
-              ) : (
-                <div className="tiny grow">已完成，可导出；如需修改请重新导入。</div>
-              )}
-            </div>
+            {batch.done && (
+              <div className="tiny" style={{ marginTop: 10 }}>已完成，可导出；如需修改请重新导入。</div>
+            )}
           </div>
 
           {unknown > 0 && (
@@ -188,16 +182,17 @@ export default function Trajectory() {
           <div style={{ height: 90 }} />
           <button
             className="fab"
-            style={batch.done ? undefined : { background: 'rgba(10,132,255,.35)', boxShadow: 'none' }}
+            disabled={!batch.done && (!images.length || busy)}
             onClick={() => {
               if (!batch.done) {
-                useStore.getState().showToast('先点「完成」，再导出');
+                finishTrajectoryBatch(batch.id);
                 return;
               }
               setExportOpen(true);
             }}
           >
-            <IconRoute size={18} /> 导出
+            {batch.done ? <IconDownload size={18} /> : <IconCheck size={18} />}
+            {batch.done ? '导出' : '完成'}
           </button>
         </>
       )}

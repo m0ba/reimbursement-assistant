@@ -159,19 +159,18 @@ export default function Invoices() {
             </div>
 
             <div className="row" style={{ gap: 10 }}>
-              {!batch.done && (
-                <button className="btn primary grow" onClick={() => finishInvoiceBatch(batch.id)} disabled={!mergeDone}>
-                  <IconCheck size={18} /> 完成
+              {!batch.done ? (
+                <>
+                  <button className="btn primary grow" onClick={() => finishInvoiceBatch(batch.id)} disabled={!mergeDone}>
+                    <IconCheck size={18} /> 完成
+                  </button>
+                  <button className="btn" onClick={() => regenerateLayout(batch.id)}>重新拼版</button>
+                </>
+              ) : (
+                <button className="btn primary wide" onClick={() => exportInvoicePdf(batch.id)}>
+                  <IconDownload size={18} /> 导出 PDF
                 </button>
               )}
-              <button
-                className={'btn grow ' + (batch.done ? 'primary' : '')}
-                onClick={() => exportInvoicePdf(batch.id)}
-                disabled={!batch.done}
-              >
-                <IconDownload size={18} /> 导出 PDF
-              </button>
-              {!batch.done && <button className="btn" onClick={() => regenerateLayout(batch.id)}>重新拼版</button>}
             </div>
             {!batch.done && (
               <div className="tiny" style={{ marginTop: 8 }}>点「完成」后才会存入材料库并允许导出；完成后不能再修改。</div>
