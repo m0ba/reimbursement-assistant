@@ -2,10 +2,32 @@ import { useEffect, useState } from 'react';
 import { OCR_MODELS, useStore } from '../lib/store';
 import { clearAllBlobs, putBlob } from '../lib/db';
 import { disposeOcr } from '../lib/ocr';
-import { Confirm } from '../components/Sheet';
+import { Confirm, Sheet } from '../components/Sheet';
 import { Ring } from '../components/TaskBadge';
-import { IconCheck, IconDownload, IconTrash } from '../components/Icons';
+import { IconBack, IconCheck, IconDownload, IconTrash } from '../components/Icons';
 import { APP_VERSION } from '../lib/version';
+
+const RELEASE_API = 'https://api.github.com/repos/m0ba/reimbursement-assistant/releases/latest';
+const RAW_VERSION = 'https://raw.githubusercontent.com/m0ba/reimbursement-assistant/main/public/version.json';
+const DOWNLOAD_BASE = 'https://github.com/m0ba/reimbursement-assistant/releases/download';
+
+type Release = {
+  version: string;
+  url: string;
+  apk: string;
+  date: string;
+  notes: string[];
+};
+
+function cmpVersion(a: string, b: string) {
+  const pa = a.replace(/^v/i, '').split('.').map((n) => Number(n) || 0);
+  const pb = b.replace(/^v/i, '').split('.').map((n) => Number(n) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
 
 export default function Settings() {
   const settings = useStore((s) => s.settings);
@@ -15,8 +37,84 @@ export default function Settings() {
   const [pct, setPct] = useState(0);
   const [clearOpen, setClearOpen] = useState(false);
   const [delTarget, setDelTarget] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [release, setRelease] = useState<Release | null>(null);
   const batches = useStore((s) => s.batches);
   const files = useStore((s) => s.files);
+
+  const openLink = (url: string) => {
+    const native = (window as any).Capacitor?.isNativePlatform?.();
+    // 原生端由 WebView 拦下外链，交给系统浏览器下载；网页端开新标签。
+    if (native) {
+      window.location.href = url;
+      return;
+    }
+    window.open(url, '_blank', 'noopener');
+  };
+
+  const checkUpdate = async () => {
+    if (checking) return;
+    setChecking(true);
+    try {
+      let tag = '';
+      let htmlUrl = 'https://github.com/m0ba/reimbursement-assistant/releases';
+      let apkUrl = '';
+      let date = '';
+      let notes: string[] = [];
+      try {
+        const res = await fetch(RELEASE_API, { cache: 'no-store', headers: { Accept: 'application/vnd.github+json' } });
+        if (res.ok) {
+          const data = await res.json();
+          tag = String(data.tag_name || '');
+          htmlUrl = String(data.html_url || htmlUrl);
+          date = String(data.published_at || data.created_at || '').slice(0, 10);
+          const apk = (data.assets || []).find((a: { name?: string }) => String(a.name || '').endsWith('.apk'));
+          apkUrl = apk?.browser_download_url || '';
+          notes = String(data.body || '')
+            .split('\n')
+            .map((l) =>
+              l
+                .replace(/^[-*]\s*/, '')
+                .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+                .replace(/[`*_]/g, '')
+                .trim(),
+            )
+            .filter((l) => l && !l.startsWith('#') && !l.startsWith('>') && !l.startsWith('!'))
+            .slice(0, 6);
+        }
+      } catch {
+        /* 接口被限流或断网时走下面的静态文件 */
+      }
+      if (!tag) {
+        const res = await fetch(`${RAW_VERSION}?t=${Date.now()}`, { cache: 'no-store' });
+        if (!res.ok) throw new Error(String(res.status));
+        const data = await res.json();
+        tag = String(data.version || '');
+        date = String(data.date || '');
+        notes = Array.isArray(data.notes) ? data.notes.slice(0, 6).map(String) : [];
+        if (tag) {
+          htmlUrl = `https://github.com/m0ba/reimbursement-assistant/releases/tag/v${tag}`;
+          apkUrl = `${DOWNLOAD_BASE}/v${tag}/reimbursement-${tag}.apk`;
+        }
+      }
+      if (!tag) throw new Error('tag');
+      if (cmpVersion(tag, APP_VERSION) > 0) {
+        setRelease({
+          version: tag.replace(/^v/i, ''),
+          url: htmlUrl,
+          apk: apkUrl || htmlUrl,
+          date,
+          notes,
+        });
+      } else {
+        useStore.getState().showToast(`已是最新版本 v${APP_VERSION}`);
+      }
+    } catch {
+      useStore.getState().showToast('检查失败，请检查网络后重试');
+    } finally {
+      setChecking(false);
+    }
+  };
 
   useEffect(() => {
     navigator.storage?.estimate?.().then((e) => {
@@ -123,21 +221,52 @@ export default function Settings() {
         <button
           className="row between"
           style={{ width: '100%', padding: '4px 0' }}
-          onClick={async () => {
-            const regs = await navigator.serviceWorker?.getRegistrations?.();
-            await Promise.all((regs || []).map((r) => r.unregister()));
-            const keys = await caches.keys();
-            await Promise.all(keys.map((k) => caches.delete(k)));
-            location.reload();
-          }}
+          onClick={checkUpdate}
+          disabled={checking}
         >
           <span style={{ fontWeight: 600 }}>检查更新</span>
-          <span className="tiny">清掉旧缓存并重新加载</span>
+          <span className="row" style={{ gap: 6 }}>
+            {checking && <span className="tiny muted">正在检查…</span>}
+            <span style={{ display: 'inline-flex', transform: 'rotate(180deg)', color: 'var(--text3)' }}>
+              <IconBack size={15} />
+            </span>
+          </span>
         </button>
         <p className="tiny" style={{ marginBottom: 0 }}>
-          发票与截图不会上传。所有识别、拼版、导出都在浏览器内完成，关闭程序后数据仍保存在本机，清空即删除。
+          发票与截图不会上传；检查更新只读取公开的版本信息。
         </p>
       </div>
+
+      <Sheet
+        open={!!release}
+        onClose={() => setRelease(null)}
+        title={release ? `发现新版本 v${release.version}` : ''}
+        lead={release?.date ? `发布于 ${release.date}。覆盖安装即可，材料不会丢。` : '覆盖安装即可，材料不会丢。'}
+      >
+        {!!release?.notes.length && (
+          <div className="card">
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>这次更新</div>
+            {release.notes.map((n, i) => (
+              <div key={i} className="tiny" style={{ lineHeight: 1.7 }}>· {n}</div>
+            ))}
+          </div>
+        )}
+        <div className="row" style={{ gap: 10 }}>
+          <button className="btn grow" onClick={() => setRelease(null)}>稍后</button>
+          <button
+            className="btn primary grow"
+            onClick={() => {
+              if (release) openLink(release.apk);
+              setRelease(null);
+            }}
+          >
+            去下载
+          </button>
+        </div>
+        <div className="tiny" style={{ marginTop: 8, marginBottom: 2 }}>
+          会在浏览器里打开 GitHub 的 APK 下载地址，装好后直接覆盖旧版本。
+        </div>
+      </Sheet>
 
       <div className="section-title">帮助</div>
       <div className="card">

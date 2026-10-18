@@ -5,6 +5,7 @@ import { embedCjk } from './font';
 import { getBlob } from './db';
 import type { InvoiceItem, TrajItem } from './types';
 import { sortTrajectory } from './layout';
+import { normalizeTrajImage } from './trajimg';
 
 const MM = 72 / 25.4;
 
@@ -144,30 +145,14 @@ export async function buildInvoiceInfoPdf(items: InvoiceItem[], batchName: strin
   return new Blob([bytes as unknown as BlobPart], { type: 'application/pdf' });
 }
 
-async function imageMeta(blob: Blob): Promise<{ data: Uint8Array; w: number; h: number; type: 'jpg' | 'png' }> {
-  const data = new Uint8Array(await blob.arrayBuffer());
-  const type = blob.type.includes('png') ? 'png' : 'jpg';
-  const url = URL.createObjectURL(blob);
-  try {
-    const img = new Image();
-    await new Promise<void>((res, rej) => {
-      img.onload = () => res();
-      img.onerror = () => rej(new Error('img'));
-      img.src = url;
-    });
-    return { data, w: img.naturalWidth, h: img.naturalHeight, type };
-  } finally {
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
-}
-
-export async function buildTrajectoryDocx(items: TrajItem[]): Promise<Blob> {
+export async function buildTrajectoryDocx(items: TrajItem[], opts: { trim?: boolean } = {}): Promise<Blob> {
+  const trim = opts.trim !== false;
   const ordered = items;
   const perPage = 20;
   const cols = 5;
   const rows = 4;
   const cellWpx = 140;
-  const cellHpx = 250;
+  const cellHpx = 240;
   const pages: Table[] = [];
 
   for (let p = 0; p * perPage < Math.max(ordered.length, 1); p++) {
@@ -183,7 +168,7 @@ export async function buildTrajectoryDocx(items: TrajItem[]): Promise<Blob> {
           const blob = await getBlob(item.blobKey);
           if (blob) {
             try {
-              const meta = await imageMeta(blob);
+              const meta = await normalizeTrajImage(blob, trim);
               const s = Math.min(cellWpx / meta.w, cellHpx / meta.h);
               child = new Paragraph({
                 alignment: AlignmentType.CENTER,

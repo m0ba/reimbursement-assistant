@@ -56,6 +56,8 @@ export default function Trajectory() {
   const setView = useStore((s) => s.setView);
   const patchBatch = useStore((s) => s.patchBatch);
   const task = useStore((s) => s.task);
+  const trim = useStore((s) => s.settings.trajTrim !== false);
+  const setSettings = useStore((s) => s.setSettings);
   const pickRef = useRef<HTMLInputElement>(null);
   const [editItem, setEditItem] = useState<TrajItem | null>(null);
   const [value, setValue] = useState('');
@@ -228,6 +230,22 @@ export default function Trajectory() {
             <div className="tiny" style={{ color: '#8a5300' }}>还有 {unknown} 张未识别，将排在最后</div>
           </div>
         )}
+        <div className="card">
+          <div className="row between" style={{ gap: 12 }}>
+            <div className="grow">
+              <div style={{ fontWeight: 600 }}>裁掉状态栏与底部按钮</div>
+              <div className="tiny">只去掉手机状态栏和 App 底部按钮条，路线不动；5×4 排布更紧凑，接近参考稿。</div>
+            </div>
+            <button
+              className={'switch' + (trim ? ' on' : '')}
+              aria-label="裁掉状态栏与底部按钮"
+              aria-pressed={trim}
+              onClick={() => setSettings({ trajTrim: !trim })}
+            >
+              <i />
+            </button>
+          </div>
+        </div>
         <div className="row" style={{ gap: 10 }}>
           <motion.button
             className="btn primary grow"
