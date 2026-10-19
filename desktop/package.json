@@ -1,6 +1,6 @@
 {
   "name": "reimbursement-desktop",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "private": true,
   "description": "报销助手桌面版（免安装）",
   "main": "main.cjs",
@@ -28,7 +28,8 @@
       "target": [
         "portable"
       ],
-      "artifactName": "reimbursement-${version}-win.${ext}"
+      "artifactName": "reimbursement-${version}-win.${ext}",
+      "icon": "build/icon.ico"
     },
     "portable": {
       "artifactName": "reimbursement-${version}-win.${ext}"
@@ -39,7 +40,8 @@
       ],
       "category": "public.app-category.finance",
       "identity": null,
-      "artifactName": "reimbursement-${version}-mac-${arch}.${ext}"
+      "artifactName": "reimbursement-${version}-mac-${arch}.${ext}",
+      "icon": "build/icon.icns"
     },
     "dmg": {
       "title": "报销助手 ${version}"
