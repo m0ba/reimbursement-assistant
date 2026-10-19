@@ -225,8 +225,8 @@ export default function Invoices() {
                         <th>类型</th>
                         <th>发票号码</th>
                         <th>开票时间</th>
-                        <th className="num">金额</th>
-                        {verifyOn && <th>校验</th>}
+                        <th className="num" style={{ paddingRight: 8 }}>金额</th>
+                        {verifyOn && <th style={{ paddingLeft: 8 }}>校验</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -259,7 +259,7 @@ export default function Invoices() {
                                 </div>
                               )}
                             </td>
-                            <td className="mono" style={{ fontSize: 11 }}>
+                            <td className="mono" style={{ fontSize: verifyOn ? 10 : 11 }}>
                               <div className="row" style={{ gap: 6 }}>
                                 <span style={{ wordBreak: 'break-all' }}>
                                   {it.number || (
@@ -286,7 +286,7 @@ export default function Invoices() {
                             <td className="mono" style={{ fontSize: 11, whiteSpace: 'nowrap', color: 'var(--text2)' }}>
                               {it.date || '—'}
                             </td>
-                            <td className="num mono">
+                            <td className="num mono" style={{ paddingRight: 8 }}>
                               {it.amount !== undefined ? (
                                 it.amount.toFixed(2)
                               ) : (
@@ -294,7 +294,7 @@ export default function Invoices() {
                               )}
                             </td>
                             {verifyOn && (
-                              <td>
+                              <td style={{ paddingLeft: 8 }}>
                                 {it.verify === 'ok' && <span className="chip ok">一致</span>}
                                 {it.verify === 'mismatch' && (
                                   <motion.span className="chip warn" animate={{ x: [0, -3, 3, -2, 0] }} transition={{ duration: 0.3 }}>
