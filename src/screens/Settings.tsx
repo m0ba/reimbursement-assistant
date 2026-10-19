@@ -121,6 +121,7 @@ export default function Settings() {
   const [custom, setCustom] = useState(settings.mirrorCustom || '');
   const [probing, setProbing] = useState(false);
   const [dl, setDl] = useState<DlInfo | null>(dlCache);
+  const [dlOpen, setDlOpen] = useState(false);
   const batches = useStore((s) => s.batches);
   const files = useStore((s) => s.files);
   const mirrorPrefix = settings.mirrorCustom || MIRRORS[0].prefix;
@@ -302,13 +303,21 @@ export default function Settings() {
       const reader = res.body?.getReader();
       const chunks: Uint8Array[] = [];
       let got = 0;
+      let lastPct = -1;
       if (reader) {
         for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
           chunks.push(value);
           got += value.length;
-          if (total) setPct(got / total);
+          if (total) {
+            // 只在整数百分比变化时更新，避免每个分片都重渲染整页
+            const p = Math.round((got / total) * 100);
+            if (p !== lastPct) {
+              lastPct = p;
+              setPct(got / total);
+            }
+          }
         }
       }
       const blob = new Blob(chunks as BlobPart[], { type: 'application/octet-stream' });
@@ -334,7 +343,7 @@ export default function Settings() {
           const installed = settings.installedModels.includes(m.id);
           const active = settings.ocrModelId === m.id;
           return (
-            <div key={m.id} className="list-item" style={{ alignItems: 'flex-start' }}>
+            <div key={m.id} className="list-item" style={{ alignItems: 'flex-start', position: 'relative' }}>
               <button
                 onClick={() => installed && setSettings({ ocrModelId: m.id })}
                 style={{ width: 24, marginTop: 2, color: active ? 'var(--blue)' : 'var(--text3)' }}
@@ -344,11 +353,13 @@ export default function Settings() {
               </button>
               <div className="grow">
                 <div className="title">{m.name}</div>
-                <div className="meta">{m.mb} MB · {m.note}</div>
+                <div className="meta" style={{ minHeight: 34 }}>
+                  {m.mb} MB · {m.note}
+                  {!m.builtin && installed ? ' · 已安装' : ''}
+                </div>
                 {m.builtin && <span className="chip ok" style={{ marginTop: 6 }}>默认 · 不可删除</span>}
-                {!m.builtin && installed && <span className="chip" style={{ marginTop: 6 }}>已安装</span>}
                 {downloading === m.id && (
-                  <div className="progress-track" style={{ marginTop: 8 }}>
+                  <div className="progress-track" style={{ position: 'absolute', left: 16, right: 16, bottom: 3, margin: 0 }}>
                     <i style={{ width: `${Math.round(pct * 100)}%` }} />
                   </div>
                 )}
@@ -394,11 +405,30 @@ export default function Settings() {
         </p>
 
         <div className="divider" />
-        <div className="row between" style={{ marginBottom: 2 }}>
+        <button
+          className="row between"
+          style={{ width: '100%', padding: '2px 0' }}
+          onClick={() => setDlOpen((v) => !v)}
+          aria-expanded={dlOpen}
+        >
           <span style={{ fontWeight: 600 }}>下载安装包</span>
-          {dl?.version && <span className="tiny muted mono">v{dl.version}</span>}
-        </div>
-        {dl ? (
+          <span className="row" style={{ gap: 6 }}>
+            {dl?.version && <span className="tiny muted mono">v{dl.version}</span>}
+            <span
+              style={{
+                display: 'inline-flex',
+                color: 'var(--text3)',
+                fontSize: 20,
+                lineHeight: 1,
+                transition: 'transform .2s ease',
+                transform: dlOpen ? 'rotate(90deg)' : 'none',
+              }}
+            >
+              ›
+            </span>
+          </span>
+        </button>
+        {dlOpen && (dl ? (
           <>
             {[
               { name: 'Android', url: dl.apk },
@@ -436,7 +466,7 @@ export default function Settings() {
           <button className="btn wide" onClick={() => openLink('https://github.com/m0ba/reimbursement-assistant/releases')}>
             打开下载页面
           </button>
-        )}
+        ))}
       </div>
 
       <Sheet
