@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, Menu } = require('electron');
+const { app, BrowserWindow, shell, Menu, ipcMain } = require('electron');
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -43,6 +43,18 @@ function listen(server, port) {
     server.once('listening', onListening);
     server.listen(port, '127.0.0.1');
   });
+}
+
+function uniqueDownloadPath(dir, name) {
+  const ext = path.extname(name);
+  const base = path.basename(name, ext);
+  let candidate = path.join(dir, name);
+  let i = 1;
+  while (fs.existsSync(candidate)) {
+    candidate = path.join(dir, `${base} (${i})${ext}`);
+    i += 1;
+  }
+  return candidate;
 }
 
 async function startServer() {
@@ -96,6 +108,22 @@ if (!app.requestSingleInstanceLock()) {
         contextIsolation: true,
         nodeIntegration: false,
       },
+    });
+
+    // 导出直接落到「下载」目录，不弹系统另存为
+    win.webContents.session.on('will-download', (event, item) => {
+      const target = uniqueDownloadPath(app.getPath('downloads'), item.getFilename());
+      item.setSavePath(target);
+      item.once('done', (_e, state) => {
+        if (state === 'completed' && !win.isDestroyed()) {
+          win.webContents.send('download-done', { name: path.basename(target), path: target });
+        }
+      });
+    });
+
+    ipcMain.handle('open-path', async (_e, target) => {
+      if (typeof target !== 'string' || !fs.existsSync(target)) return 'not found';
+      return shell.openPath(target);
     });
 
     win.loadURL(`${origin}/`);

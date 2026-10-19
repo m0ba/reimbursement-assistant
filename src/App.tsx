@@ -17,9 +17,16 @@ export default function App() {
   const toast = useStore((s) => s.toast);
   const savedFile = useStore((s) => s.savedFile);
   const setSavedFile = useStore((s) => s.setSavedFile);
+  const isDesktop = !!(window as any).desktopApp?.platform;
 
   const openSavedFile = async () => {
     if (!savedFile) return;
+    const desk = (window as any).desktopApp;
+    if (desk?.openPath && savedFile.uri.startsWith('/')) {
+      await desk.openPath(savedFile.uri);
+      setSavedFile(null);
+      return;
+    }
     try {
       const { registerPlugin } = await import('@capacitor/core');
       const SaveFile = registerPlugin<{ openFile: (o: { uri: string; mime: string }) => Promise<void> }>('SaveFile');
@@ -29,6 +36,13 @@ export default function App() {
     }
     setSavedFile(null);
   };
+
+  useEffect(() => {
+    const desk = (window as any).desktopApp;
+    desk?.onDownloadDone?.((info: { name: string; path: string }) => {
+      useStore.getState().setSavedFile({ name: info.name, uri: info.path, mime: '' });
+    });
+  }, []);
 
   useEffect(() => {
     const onVis = () => {
@@ -75,7 +89,7 @@ export default function App() {
       <Confirm
         open={!!savedFile}
         title="已保存"
-        body={savedFile ? `文件已存到手机的「下载」文件夹：\n${savedFile.name}\n\n可以现在打开，也可以稍后去文件管理里找。` : ''}
+        body={savedFile ? `文件已存到${isDesktop ? '电脑' : '手机'}的「下载」文件夹：\n${savedFile.name}\n\n可以现在打开，也可以稍后去文件管理里找。` : ''}
         confirmText="打开文件"
         cancelText="知道了"
         onClose={() => setSavedFile(null)}

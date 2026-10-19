@@ -1,6 +1,6 @@
 {
   "name": "reimbursement-desktop",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "private": true,
   "description": "报销助手桌面版（免安装）",
   "main": "main.cjs",
