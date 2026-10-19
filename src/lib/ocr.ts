@@ -15,6 +15,7 @@ export const OCR_FILE: Record<string, string> = {
 };
 
 const NATIVE = typeof window !== 'undefined' && Capacitor.isNativePlatform();
+const ORIGIN = typeof location !== 'undefined' ? location.origin : '';
 const MODEL_BASE: Record<string, string> = { 'eng-fast': 'eng', 'chi-sim-fast': 'chi_sim' };
 
 /** APK 里 aapt 会解压 .gz 并去掉后缀，原生端要用未压缩文件名。 */
@@ -36,9 +37,9 @@ export async function ensureWorker(modelId: string): Promise<Worker> {
   }
   const make = (gzip: boolean) =>
     createWorker(lang, 1, {
-      workerPath: '/tesseract/worker.min.js',
-      corePath: '/tesseract',
-      langPath: '/tessdata',
+      workerPath: `${ORIGIN}/tesseract/worker.min.js`,
+      corePath: `${ORIGIN}/tesseract`,
+      langPath: `${ORIGIN}/tessdata`,
       gzip,
       logger: () => {},
     });

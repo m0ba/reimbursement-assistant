@@ -23,7 +23,14 @@ async function forceFreshIfStale() {
   }
 }
 
-if ('serviceWorker' in navigator) {
+const isDesktopShell = !!(window as any).desktopApp?.platform;
+
+if (isDesktopShell && 'serviceWorker' in navigator) {
+  // 桌面版是本地文件，不需要离线缓存；顺手清掉旧版本留下的缓存，避免加载到旧代码
+  void navigator.serviceWorker.getRegistrations().then((regs) => regs.forEach((r) => r.unregister()));
+}
+
+if ('serviceWorker' in navigator && !isDesktopShell) {
   let reloading = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (reloading) return;

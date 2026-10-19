@@ -126,6 +126,13 @@ if (!app.requestSingleInstanceLock()) {
       return shell.openPath(target);
     });
 
+    // 本地文件不需要 Service Worker，启动前清掉旧版本留下的 SW 与缓存，避免加载到旧代码
+    try {
+      await win.webContents.session.clearStorageData({ storages: ['serviceworkers', 'cachestorage'] });
+    } catch (e) {
+      /* 清不掉就继续，页面里还有兜底 */
+    }
+
     win.loadURL(`${origin}/`);
     win.webContents.setWindowOpenHandler(({ url }) => {
       if (!url.startsWith(origin)) shell.openExternal(url);
