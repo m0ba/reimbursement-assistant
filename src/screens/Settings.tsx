@@ -15,7 +15,6 @@ const VERSION_SOURCES = [
 const DOWNLOAD_BASE = 'https://github.com/m0ba/reimbursement-assistant/releases/download';
 const MIRRORS = [
   { name: '加速线路 1', host: 'gh-proxy.com', prefix: 'https://gh-proxy.com/' },
-  { name: '加速线路 2', host: 'ghproxy.net', prefix: 'https://ghproxy.net/' },
 ];
 
 type Release = {
@@ -93,6 +92,8 @@ export default function Settings() {
   const [checking, setChecking] = useState(false);
   const [release, setRelease] = useState<Release | null>(null);
   const [mirrorFor, setMirrorFor] = useState<string | null>(null);
+  const [custom, setCustom] = useState(settings.mirrorCustom || '');
+  const [probing, setProbing] = useState(false);
   const batches = useStore((s) => s.batches);
   const files = useStore((s) => s.files);
 
@@ -118,6 +119,59 @@ export default function Settings() {
       el.remove();
     }
     useStore.getState().showToast('下载链接已复制，可粘贴到浏览器或迅雷');
+  };
+
+  const probeUrl = async (url: string): Promise<boolean> => {
+    const attempt = (init: RequestInit) =>
+      new Promise<boolean>((resolve, reject) => {
+        const ctl = new AbortController();
+        const timer = setTimeout(() => {
+          ctl.abort();
+          reject(new Error('timeout'));
+        }, 6000);
+        fetch(url, { cache: 'no-store', signal: ctl.signal, ...init })
+          .then((res) => {
+            clearTimeout(timer);
+            if (init.mode === 'no-cors' || res.ok || res.status === 206) resolve(true);
+            else reject(new Error(`status ${res.status}`));
+          })
+          .catch((err) => {
+            clearTimeout(timer);
+            reject(err);
+          });
+      });
+    try {
+      await Promise.any([attempt({ headers: { Range: 'bytes=0-1023' } }), attempt({ mode: 'no-cors' })]);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const useCustomMirror = async () => {
+    if (!mirrorFor || probing) return;
+    let prefix = custom.trim();
+    if (!prefix) {
+      useStore.getState().showToast('先填一个加速地址');
+      return;
+    }
+    if (!/^https?:\/\//i.test(prefix)) prefix = `https://${prefix}`;
+    if (!prefix.endsWith('/')) prefix += '/';
+    const target = `${prefix}${mirrorFor}`;
+    setProbing(true);
+    try {
+      const ok = await probeUrl(target);
+      if (!ok) {
+        useStore.getState().showToast('这条线路没反应，换个地址再试');
+        return;
+      }
+      setSettings({ mirrorCustom: prefix });
+      openLink(target);
+      setMirrorFor(null);
+      useStore.getState().showToast('线路可用，已打开下载');
+    } finally {
+      setProbing(false);
+    }
   };
 
   const checkUpdate = async () => {
@@ -327,24 +381,47 @@ export default function Settings() {
 
       <Sheet open={!!mirrorFor} onClose={() => setMirrorFor(null)} title="选择下载线路" lead="哪条快用哪条，装的内容完全一样。">
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          {MIRRORS.map((m) => (
-            <div key={m.host}>
-              <button
-                className="list-item"
-                style={{ width: '100%' }}
-                onClick={() => {
-                  if (mirrorFor) openLink(m.prefix + mirrorFor);
-                  setMirrorFor(null);
-                }}
-              >
-                <div className="grow" style={{ textAlign: 'left' }}>
-                  <div className="title">{m.name}</div>
-                  <div className="meta">{m.host}</div>
-                </div>
-                <span style={{ color: 'var(--text3)', fontSize: 22, lineHeight: 1 }}>›</span>
-              </button>
+          <button
+            className="list-item"
+            style={{ width: '100%' }}
+            onClick={() => {
+              if (mirrorFor) openLink(MIRRORS[0].prefix + mirrorFor);
+              setMirrorFor(null);
+            }}
+          >
+            <div className="grow" style={{ textAlign: 'left' }}>
+              <div className="title">{MIRRORS[0].name}</div>
+              <div className="meta">{MIRRORS[0].host}</div>
             </div>
-          ))}
+            <span style={{ color: 'var(--text3)', fontSize: 22, lineHeight: 1 }}>›</span>
+          </button>
+
+          <div style={{ padding: '14px 16px' }}>
+            <div style={{ fontWeight: 600, fontSize: 15 }}>自定义加速</div>
+            <div className="tiny" style={{ marginTop: 2 }}>填镜像前缀，例如 https://github.akams.cn/</div>
+            <input
+              value={custom}
+              onChange={(e) => setCustom(e.target.value)}
+              placeholder="https://github.akams.cn/"
+              inputMode="url"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              style={{
+                width: '100%',
+                marginTop: 10,
+                border: 0,
+                background: 'rgba(120,120,128,.12)',
+                borderRadius: 12,
+                padding: '12px 14px',
+                fontSize: 15,
+              }}
+            />
+            <button className="btn wide tint" style={{ marginTop: 10, height: 42 }} disabled={probing} onClick={useCustomMirror}>
+              {probing ? '正在检测…' : '检测并使用'}
+            </button>
+          </div>
+
           <button className="list-item" style={{ width: '100%' }} onClick={() => mirrorFor && copyLink(mirrorFor)}>
             <div className="grow" style={{ textAlign: 'left' }}>
               <div className="title">复制下载链接</div>

@@ -87,6 +87,7 @@ export interface Settings {
   perPage: 2 | 4;
   introSeen: boolean;
   trajPerPage: 20 | 15 | 12;
+  mirrorCustom: string;
 }
 
 export interface TaskState {
