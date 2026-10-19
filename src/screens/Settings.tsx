@@ -81,6 +81,32 @@ function downloadUrlFor(version: string): string {
   return `${DOWNLOAD_BASE}/v${version}/reimbursement-${version}.apk`;
 }
 
+type DlInfo = { version: string; apk: string; win: string; macArm: string; macX64: string; page: string };
+let dlCache: DlInfo | null = null;
+
+async function loadDownloads(): Promise<DlInfo | null> {
+  if (dlCache) return dlCache;
+  try {
+    const data = await fetchJson(RELEASE_API, 6000);
+    const assets = (data.assets || []).map((a: { name?: string; browser_download_url?: string }) => ({
+      n: String(a.name || '').toLowerCase(),
+      u: String(a.browser_download_url || ''),
+    }));
+    const find = (pred: (n: string) => boolean) => assets.find((a: { n: string }) => pred(a.n))?.u || '';
+    dlCache = {
+      version: String(data.tag_name || '').replace(/^v/i, ''),
+      apk: find((n) => n.endsWith('.apk')),
+      win: find((n) => n.endsWith('.exe') && n.includes('-win')),
+      macArm: find((n) => n.endsWith('-mac-arm64.zip')),
+      macX64: find((n) => n.endsWith('-mac-x64.zip')),
+      page: String(data.html_url || 'https://github.com/m0ba/reimbursement-assistant/releases'),
+    };
+    return dlCache;
+  } catch {
+    return null;
+  }
+}
+
 export default function Settings() {
   const settings = useStore((s) => s.settings);
   const setSettings = useStore((s) => s.setSettings);
@@ -94,8 +120,21 @@ export default function Settings() {
   const [mirrorFor, setMirrorFor] = useState<string | null>(null);
   const [custom, setCustom] = useState(settings.mirrorCustom || '');
   const [probing, setProbing] = useState(false);
+  const [dl, setDl] = useState<DlInfo | null>(dlCache);
   const batches = useStore((s) => s.batches);
   const files = useStore((s) => s.files);
+  const mirrorPrefix = settings.mirrorCustom || MIRRORS[0].prefix;
+  const mirrorHost = mirrorPrefix.replace(/^https?:\/\//i, '').replace(/\/$/, '');
+
+  useEffect(() => {
+    let alive = true;
+    loadDownloads().then((v) => {
+      if (alive && v) setDl(v);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const openLink = (url: string) => {
     const native = (window as any).Capacitor?.isNativePlatform?.();
@@ -172,6 +211,20 @@ export default function Settings() {
     } finally {
       setProbing(false);
     }
+  };
+
+  const saveCustomMirror = () => {
+    let v = custom.trim();
+    if (!v) {
+      setSettings({ mirrorCustom: '' });
+      useStore.getState().showToast('已恢复默认加速');
+      return;
+    }
+    if (!/^https?:\/\//i.test(v)) v = `https://${v}`;
+    if (!v.endsWith('/')) v += '/';
+    setCustom(v);
+    setSettings({ mirrorCustom: v });
+    useStore.getState().showToast('已保存自定义加速');
   };
 
   const checkUpdate = async () => {
@@ -339,6 +392,51 @@ export default function Settings() {
         <p className="tiny" style={{ margin: '10px 2px 0' }}>
           发票与截图不会上传；检查更新只读取公开的版本信息。
         </p>
+
+        <div className="divider" />
+        <div className="row between" style={{ marginBottom: 2 }}>
+          <span style={{ fontWeight: 600 }}>下载安装包</span>
+          {dl?.version && <span className="tiny muted mono">v{dl.version}</span>}
+        </div>
+        {dl ? (
+          <>
+            {[
+              { name: 'Android', url: dl.apk },
+              { name: 'Windows', url: dl.win },
+              { name: 'macOS（Apple 芯片）', url: dl.macArm },
+              { name: 'macOS（Intel）', url: dl.macX64 },
+            ]
+              .filter((r) => r.url)
+              .map((r) => (
+                <div className="dl-row" key={r.name}>
+                  <span className="name">{r.name}</span>
+                  <button className="dl-btn" onClick={() => openLink(r.url)}>直连</button>
+                  <button className="dl-btn tint" onClick={() => openLink(`${mirrorPrefix}${r.url}`)}>加速</button>
+                </div>
+              ))}
+            <div className="tiny" style={{ marginTop: 2 }}>
+              加速默认走 {mirrorHost}，可在下面换成自己的加速地址。
+            </div>
+            <div className="row" style={{ gap: 8, marginTop: 8 }}>
+              <input
+                value={custom}
+                onChange={(e) => setCustom(e.target.value)}
+                placeholder="https://github.akams.cn/"
+                inputMode="url"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                className="grow"
+                style={{ border: 0, background: 'rgba(120,120,128,.12)', borderRadius: 12, padding: '11px 14px', fontSize: 14 }}
+              />
+              <button className="dl-btn tint" style={{ height: 40, padding: '0 14px' }} onClick={saveCustomMirror}>保存</button>
+            </div>
+          </>
+        ) : (
+          <button className="btn wide" onClick={() => openLink('https://github.com/m0ba/reimbursement-assistant/releases')}>
+            打开下载页面
+          </button>
+        )}
       </div>
 
       <Sheet
