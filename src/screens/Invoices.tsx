@@ -224,6 +224,7 @@ export default function Invoices() {
                       <tr>
                         <th>类型</th>
                         <th>发票号码</th>
+                        <th>开票时间</th>
                         <th className="num">金额</th>
                         {verifyOn && <th>校验</th>}
                       </tr>
@@ -250,9 +251,11 @@ export default function Invoices() {
                                 <option>其他</option>
                               </select>
                               {it.routeFrom && it.routeTo && (
-                                <div className="tiny" style={{ marginTop: 3, fontSize: 10.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                  {it.routeFrom}→{it.routeTo}
-                                  {it.departAt ? ` · ${it.departAt.slice(11)}` : ''}
+                                <div className="tiny" style={{ marginTop: 3, fontSize: 10.5, lineHeight: 1.5 }}>
+                                  <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {it.routeFrom}→{it.routeTo}
+                                  </div>
+                                  {it.departAt && <div className="mono" style={{ color: 'var(--text2)' }}>{`${it.departAt.slice(0, 10)} ${it.departAt.slice(11)}`}</div>}
                                 </div>
                               )}
                             </td>
@@ -279,6 +282,9 @@ export default function Invoices() {
                                 )}
                               </div>
                               {it.duplicate && <span className="chip bad" style={{ marginTop: 4 }}>重复</span>}
+                            </td>
+                            <td className="mono" style={{ fontSize: 11, whiteSpace: 'nowrap', color: 'var(--text2)' }}>
+                              {it.date || '—'}
                             </td>
                             <td className="num mono">
                               {it.amount !== undefined ? (
