@@ -612,3 +612,24 @@ button { border: 0; background: none; padding: 0; cursor: pointer; }
 .p-inline-spec { font-size: 11.5px; color: var(--text2); margin-top: 1px; }
 .p-prio-select { font-size: 12px; color: var(--text2); background: transparent; border: 0; padding: 2px 0; }
 .p-foot-hint { margin: 10px 4px 0; padding: 10px 12px; border-radius: 12px; background: rgba(10,132,255,.06); color: var(--text2); font-size: 12px; line-height: 1.6; }
+
+.p-menu-backdrop { position: fixed; inset: 0; z-index: 58; background: transparent; }
+.p-menu {
+  position: fixed; z-index: 61; width: 184px; padding: 6px;
+  background: rgba(255,255,255,.97);
+  border: 1px solid rgba(60,60,67,.08);
+  border-radius: 14px;
+  box-shadow: 0 14px 40px rgba(0,0,0,.18), 0 2px 8px rgba(0,0,0,.06);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+.p-menu button {
+  width: 100%; display: flex; align-items: center; gap: 9px;
+  padding: 9px 10px; border-radius: 9px;
+  font-size: 14px; color: var(--text); text-align: left;
+}
+.p-menu button:active { background: rgba(120,120,128,.13); }
+.p-menu button.danger { color: var(--red); }
+.p-menu-ico { width: 16px; text-align: center; font-size: 15px; color: var(--text2); }
+.p-menu button.danger .p-menu-ico { color: var(--red); }
+.p-menu-sep { height: 1px; background: var(--line); margin: 5px 8px; }

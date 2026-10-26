@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
 import { Capacitor } from '@capacitor/core';
 import { useStore } from '../lib/store';
 import { Confirm, Sheet } from '../components/Sheet';
@@ -48,7 +49,7 @@ export default function Purchase() {
   const [activeCat, setActiveCat] = useState('');
   const [editing, setEditing] = useState<{ item: PurchaseItem; isNew?: boolean } | null>(null);
   const [errors, setErrors] = useState<ItemError[]>([]);
-  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [confirmKind, setConfirmKind] = useState<null | 'finish' | 'rollback' | 'delete' | 'clear' | 'export' | 'new' | 'catDone' | 'catNone' | 'catUndo'>(null);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [hintOpen, setHintOpen] = useState(false);
@@ -473,7 +474,18 @@ export default function Purchase() {
                     </td>
                     <td className="w-att">{it.images.length ? `${it.images.length} 图` : '—'}</td>
                     <td className="w-more">
-                      {!done && <button className="p-more" onClick={() => setMenuFor(it.id)}>⋯</button>}
+                      {!done && (
+                        <button
+                          className="p-more"
+                          onClick={(e) => {
+                            const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                            const w = 184;
+                            const x = Math.min(Math.max(8, r.right - w), window.innerWidth - w - 8);
+                            const y = Math.min(r.bottom + 6, window.innerHeight - 230);
+                            setMenu({ id: it.id, x, y });
+                          }}
+                        >⋯</button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -579,15 +591,36 @@ export default function Purchase() {
         )}
       </Sheet>
 
-      <Sheet open={!!menuFor} onClose={() => setMenuFor(null)} title="这一项">
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <button className="list-item" onClick={() => { const id = menuFor; setMenuFor(null); if (id) window.setTimeout(() => openDetail(id), 230); }}><span className="grow" style={{ textAlign: 'left' }}>编辑详情</span></button>
-          <button className="list-item" onClick={() => { if (menuFor) duplicate(menuFor); setMenuFor(null); }}><IconCopy size={18} /><span className="grow" style={{ textAlign: 'left' }}>复制这一项</span></button>
-          <button className="list-item" onClick={() => { if (menuFor) move(menuFor, -1); setMenuFor(null); }}><span className="grow" style={{ textAlign: 'left' }}>上移</span></button>
-          <button className="list-item" onClick={() => { if (menuFor) move(menuFor, 1); setMenuFor(null); }}><span className="grow" style={{ textAlign: 'left' }}>下移</span></button>
-          <button className="list-item" onClick={() => { const id = menuFor; setMenuFor(null); window.setTimeout(() => { setPendingDelete(id); setConfirmKind('delete'); }, 230); }}><IconTrash size={18} /><span className="grow" style={{ textAlign: 'left', color: 'var(--red)' }}>删除</span></button>
-        </div>
-      </Sheet>
+      {menu && (
+        <>
+          <div className="p-menu-backdrop" onClick={() => setMenu(null)} />
+          <motion.div
+            className="p-menu"
+            style={{ left: menu.x, top: menu.y }}
+            initial={{ opacity: 0, scale: 0.94, y: -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96 }}
+            transition={{ type: 'spring', stiffness: 460, damping: 34 }}
+          >
+            <button onClick={() => { const id = menu.id; setMenu(null); openDetail(id); }}>
+              <IconBox size={16} /><span>编辑详情</span>
+            </button>
+            <button onClick={() => { const id = menu.id; setMenu(null); duplicate(id); }}>
+              <IconCopy size={16} /><span>复制这一项</span>
+            </button>
+            <button onClick={() => { const id = menu.id; setMenu(null); move(id, -1); }}>
+              <span className="p-menu-ico">↑</span><span>上移</span>
+            </button>
+            <button onClick={() => { const id = menu.id; setMenu(null); move(id, 1); }}>
+              <span className="p-menu-ico">↓</span><span>下移</span>
+            </button>
+            <div className="p-menu-sep" />
+            <button className="danger" onClick={() => { const id = menu.id; setMenu(null); setPendingDelete(id); setConfirmKind('delete'); }}>
+              <IconTrash size={16} /><span>删除</span>
+            </button>
+          </motion.div>
+        </>
+      )}
 
       <Sheet open={addCatOpen} onClose={() => setAddCatOpen(false)} title="添加分类" lead="例如：会议室、软件、外包">
         <div className="card">
