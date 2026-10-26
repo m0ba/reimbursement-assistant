@@ -153,6 +153,8 @@ export default function Purchase() {
     if (errs.length) {
       setErrors(errs);
       useStore.getState().showToast(errs[0].message);
+      const sheet = document.querySelector('.sheet') as HTMLElement | null;
+      sheet?.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
     patchItems((list) => list.map((it) => (it.id === editing.item.id ? editing.item : it)));
@@ -579,11 +581,11 @@ export default function Purchase() {
 
       <Sheet open={!!menuFor} onClose={() => setMenuFor(null)} title="这一项">
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <button className="list-item" onClick={() => { if (menuFor) openDetail(menuFor); setMenuFor(null); }}><span className="grow" style={{ textAlign: 'left' }}>编辑详情</span></button>
+          <button className="list-item" onClick={() => { const id = menuFor; setMenuFor(null); if (id) window.setTimeout(() => openDetail(id), 230); }}><span className="grow" style={{ textAlign: 'left' }}>编辑详情</span></button>
           <button className="list-item" onClick={() => { if (menuFor) duplicate(menuFor); setMenuFor(null); }}><IconCopy size={18} /><span className="grow" style={{ textAlign: 'left' }}>复制这一项</span></button>
           <button className="list-item" onClick={() => { if (menuFor) move(menuFor, -1); setMenuFor(null); }}><span className="grow" style={{ textAlign: 'left' }}>上移</span></button>
           <button className="list-item" onClick={() => { if (menuFor) move(menuFor, 1); setMenuFor(null); }}><span className="grow" style={{ textAlign: 'left' }}>下移</span></button>
-          <button className="list-item" onClick={() => { setPendingDelete(menuFor); setMenuFor(null); setConfirmKind('delete'); }}><IconTrash size={18} /><span className="grow" style={{ textAlign: 'left', color: 'var(--red)' }}>删除</span></button>
+          <button className="list-item" onClick={() => { const id = menuFor; setMenuFor(null); window.setTimeout(() => { setPendingDelete(id); setConfirmKind('delete'); }, 230); }}><IconTrash size={18} /><span className="grow" style={{ textAlign: 'left', color: 'var(--red)' }}>删除</span></button>
         </div>
       </Sheet>
 
