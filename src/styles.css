@@ -607,10 +607,3 @@ button { border: 0; background: none; padding: 0; cursor: pointer; }
 }
 
 .p-scroll-hint { margin: 8px 4px 0; line-height: 1.5; }
-
-@media (min-width: 900px) {
-  .app.app-wide { max-width: 1180px; }
-  .app-wide .topbar { width: 100%; max-width: 1180px; margin-left: auto; margin-right: auto; }
-  .app-wide .p-actions { max-width: 1180px; margin-left: auto; margin-right: auto; }
-  .app-wide .p-actions { left: 50%; transform: translateX(-50%); width: min(1180px, 100%); }
-}

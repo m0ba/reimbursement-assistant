@@ -63,7 +63,7 @@ export default function App() {
   };
 
   return (
-    <div className={'app' + (view === 'purchase' ? ' app-wide' : '')}>
+    <div className="app">
       <div className="topbar">
         {view !== 'home' && (
           <button className="icon-btn" onClick={() => setView('home', null)} aria-label="返回">

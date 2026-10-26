@@ -121,7 +121,6 @@ export default function Settings() {
   const [custom, setCustom] = useState(settings.mirrorCustom || '');
   const [probing, setProbing] = useState(false);
   const [dl, setDl] = useState<DlInfo | null>(dlCache);
-  const [dlOpen, setDlOpen] = useState(false);
   const batches = useStore((s) => s.batches);
   const files = useStore((s) => s.files);
   const mirrorPrefix = settings.mirrorCustom || MIRRORS[0].prefix;
@@ -405,36 +404,28 @@ export default function Settings() {
         </p>
 
         <div className="divider" />
-        <button
-          className="row between"
-          style={{ width: '100%', padding: '2px 0' }}
-          onClick={() => setDlOpen((v) => !v)}
-          aria-expanded={dlOpen}
-        >
+        <div className="row between" style={{ width: '100%', padding: '2px 0' }}>
           <span style={{ fontWeight: 600 }}>下载安装包</span>
           <span className="row" style={{ gap: 6 }}>
             {dl?.version && <span className="tiny muted mono">v{dl.version}</span>}
-            <span
-              style={{
-                display: 'inline-flex',
-                color: 'var(--text3)',
-                fontSize: 20,
-                lineHeight: 1,
-                transition: 'transform .2s ease',
-                transform: dlOpen ? 'rotate(90deg)' : 'none',
-              }}
-            >
-              ›
-            </span>
           </span>
-        </button>
-        {dlOpen && (dl ? (
+        </div>
+        {(() => {
+          const info = dl || {
+            version: APP_VERSION,
+            apk: `${DOWNLOAD_BASE}/v${APP_VERSION}/reimbursement-${APP_VERSION}.apk`,
+            win: `${DOWNLOAD_BASE}/v${APP_VERSION}/reimbursement-${APP_VERSION}-win.exe`,
+            macArm: `${DOWNLOAD_BASE}/v${APP_VERSION}/reimbursement-${APP_VERSION}-mac-arm64.zip`,
+            macX64: `${DOWNLOAD_BASE}/v${APP_VERSION}/reimbursement-${APP_VERSION}-mac-x64.zip`,
+            page: `https://github.com/m0ba/reimbursement-assistant/releases/tag/v${APP_VERSION}`,
+          };
+          return (
           <>
             {[
-              { name: 'Android', url: dl.apk },
-              { name: 'Windows', url: dl.win },
-              { name: 'macOS（Apple 芯片）', url: dl.macArm },
-              { name: 'macOS（Intel）', url: dl.macX64 },
+              { name: 'Android', url: info.apk },
+              { name: 'Windows', url: info.win },
+              { name: 'macOS（Apple 芯片）', url: info.macArm },
+              { name: 'macOS（Intel）', url: info.macX64 },
             ]
               .filter((r) => r.url)
               .map((r) => (
@@ -462,11 +453,8 @@ export default function Settings() {
               <button className="dl-btn tint" style={{ height: 40, padding: '0 14px' }} onClick={saveCustomMirror}>保存</button>
             </div>
           </>
-        ) : (
-          <button className="btn wide" onClick={() => openLink('https://github.com/m0ba/reimbursement-assistant/releases')}>
-            打开下载页面
-          </button>
-        ))}
+          );
+        })()}
       </div>
 
       <Sheet
