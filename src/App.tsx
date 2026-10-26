@@ -9,6 +9,7 @@ import Invoices from './screens/Invoices';
 import Trajectory from './screens/Trajectory';
 import Materials from './screens/Materials';
 import Settings from './screens/Settings';
+import Purchase from './screens/Purchase';
 import { APP_VERSION } from './lib/version';
 
 export default function App() {
@@ -58,6 +59,7 @@ export default function App() {
     trajectory: '轨迹图',
     materials: '材料库',
     settings: '设置',
+    purchase: '采购清单',
   };
 
   return (
@@ -82,6 +84,7 @@ export default function App() {
       {view === 'trajectory' && <Trajectory />}
       {view === 'materials' && <Materials />}
       {view === 'settings' && <Settings />}
+      {view === 'purchase' && <Purchase />}
       {view !== 'home' && <div style={{ height: 40 }} />}
       <div className="app-footer">报销助手 v{APP_VERSION} · 全部在本机处理</div>
 

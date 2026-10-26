@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Batch, LibraryFile, Settings, TaskState } from './types';
+import type { Batch, LibraryFile, PurchaseList, Settings, TaskState } from './types';
 
 export const OCR_MODELS = [
   {
@@ -27,13 +27,16 @@ export const OCR_MODELS = [
 
 interface Store {
   ready: boolean;
-  view: 'home' | 'invoices' | 'trajectory' | 'materials' | 'settings';
+  view: 'home' | 'invoices' | 'trajectory' | 'purchase' | 'materials' | 'settings';
   activeBatchId: string | null;
   batches: Batch[];
   files: LibraryFile[];
   settings: Settings;
   task: TaskState;
   toast: string | null;
+  purchase: PurchaseList | null;
+  setPurchase: (p: PurchaseList | null) => void;
+  patchPurchase: (patch: Partial<PurchaseList> | ((p: PurchaseList) => Partial<PurchaseList>)) => void;
   savedFile: { name: string; uri: string; mime: string } | null;
   setSavedFile: (f: Store['savedFile']) => void;
   setView: (v: Store['view'], batchId?: string | null) => void;
@@ -76,6 +79,14 @@ export const useStore = create<Store>()(
       toast: null,
       savedFile: null,
       setSavedFile: (savedFile) => set({ savedFile }),
+      purchase: null,
+      setPurchase: (purchase) => set({ purchase }),
+      patchPurchase: (patch) =>
+        set((s) => {
+          if (!s.purchase) return {};
+          const next = typeof patch === 'function' ? patch(s.purchase) : patch;
+          return { purchase: { ...s.purchase, ...next, updatedAt: Date.now() } };
+        }),
       setView: (view, batchId) => {
         if (typeof window !== 'undefined') window.scrollTo(0, 0);
         set((s) => ({ view, activeBatchId: batchId === undefined ? s.activeBatchId : batchId }));
@@ -103,6 +114,7 @@ export const useStore = create<Store>()(
           batches: [],
           files: [],
           activeBatchId: null,
+          purchase: null,
           view: 'home',
           settings: { ocrModelId: 'eng-fast', installedModels: ['eng-fast'], lastInvoiceMode: 'info', perPage: 2, introSeen: true, trajPerPage: 20, mirrorCustom: '' },
           task: emptyTask,
@@ -110,7 +122,7 @@ export const useStore = create<Store>()(
     }),
     {
       name: 'reimb-store-v1',
-      partialize: (s) => ({ batches: s.batches, files: s.files, settings: s.settings }),
+      partialize: (s) => ({ batches: s.batches, files: s.files, settings: s.settings, purchase: s.purchase }),
       merge: (persisted, current) => {
         const p = (persisted || {}) as Partial<Store> & { settings?: Partial<Settings> };
         return {

@@ -39,6 +39,38 @@ export interface TrajItem {
   manual?: boolean;
 }
 
+export type PurchasePriority = 'high' | 'mid' | 'low';
+
+export interface PurchaseImage {
+  id: string;
+  blobKey: string;
+  name: string;
+}
+
+export interface PurchaseItem {
+  id: string;
+  category: string;
+  name: string;
+  spec: string;
+  unit: string;
+  qty: number | null;
+  price: number | null;
+  priority: PurchasePriority;
+  link: string;
+  note: string;
+  images: PurchaseImage[];
+}
+
+export interface PurchaseList {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+  done: boolean;
+  doneAt?: number;
+  items: PurchaseItem[];
+}
+
 export type InvoiceMode = 'layout' | 'info' | 'verify';
 
 export interface Batch {
@@ -62,7 +94,7 @@ export interface LibraryFile {
   id: string;
   name: string;
   blobKey: string;
-  ext: 'pdf' | 'docx' | 'csv';
+  ext: 'pdf' | 'docx' | 'csv' | 'xlsx';
   createdAt: number;
   pages?: number;
   bytes?: number;

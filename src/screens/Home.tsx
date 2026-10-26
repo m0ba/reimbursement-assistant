@@ -6,7 +6,7 @@ const tiles = [
   { id: 'invoices', name: '发票整理', hint: '导入即出 A4 拼版', Icon: IconInvoice },
   { id: 'trajectory', name: '轨迹图', hint: '按时间排 20 张/页', Icon: IconRoute },
   { id: 'materials', name: '材料库', hint: '贴签单与历史材料', Icon: IconFolder },
-  { id: 'dev1', name: '待开发', hint: '即将上线', Icon: IconBox, placeholder: true },
+  { id: 'purchase', name: '采购清单', hint: '填写后导出 Excel', Icon: IconBox },
 ] as const;
 
 export default function Home() {
@@ -35,10 +35,6 @@ export default function Home() {
               className={'tile' + ('placeholder' in t && t.placeholder ? ' placeholder' : '')}
               whileTap={{ scale: 0.97 }}
               onClick={() => {
-                if (t.id === 'dev1') {
-                  useStore.getState().showToast('即将上线');
-                  return;
-                }
                 setView(t.id as any, null);
               }}
             >
