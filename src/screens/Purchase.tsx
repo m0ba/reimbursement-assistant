@@ -479,7 +479,7 @@ export default function Purchase() {
                           className="p-more"
                           onClick={(e) => {
                             const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                            const w = 184;
+                            const w = 168;
                             const x = Math.min(Math.max(8, r.right - w), window.innerWidth - w - 8);
                             const y = Math.min(r.bottom + 6, window.innerHeight - 230);
                             setMenu({ id: it.id, x, y });

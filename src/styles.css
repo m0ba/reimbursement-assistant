@@ -615,13 +615,23 @@ button { border: 0; background: none; padding: 0; cursor: pointer; }
 
 .p-menu-backdrop { position: fixed; inset: 0; z-index: 58; background: transparent; }
 .p-menu {
-  position: fixed; z-index: 61; width: 184px; padding: 6px;
+  position: fixed; z-index: 61; width: 168px; padding: 8px 6px 6px;
   background: rgba(255,255,255,.97);
   border: 1px solid rgba(60,60,67,.08);
   border-radius: 14px;
   box-shadow: 0 14px 40px rgba(0,0,0,.18), 0 2px 8px rgba(0,0,0,.06);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+.p-menu::before {
+  content: '';
+  position: absolute; top: -6px; right: 16px;
+  width: 10px; height: 10px;
+  background: rgba(255,255,255,.97);
+  border-left: 1px solid rgba(60,60,67,.08);
+  border-top: 1px solid rgba(60,60,67,.08);
+  transform: rotate(45deg);
+  border-top-left-radius: 2px;
 }
 .p-menu button {
   width: 100%; display: flex; align-items: center; gap: 9px;
