@@ -59,6 +59,8 @@ export default function Purchase() {
   const [layoutAsk, setLayoutAsk] = useState(false);
   const [vpWidth, setVpWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [attachFor, setAttachFor] = useState<string | null>(null);
+  const attachRef = useRef<HTMLInputElement>(null);
   const [newCat, setNewCat] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -296,6 +298,32 @@ export default function Purchase() {
     setEditing({ ...editing, item: { ...editing.item, images: list } });
   };
 
+  const pickAttach = (id: string) => {
+    setAttachFor(id);
+    attachRef.current?.click();
+  };
+
+  const onAttachFiles = async (files: FileList | null) => {
+    const id = attachFor;
+    setAttachFor(null);
+    if (!files?.length || !id || !purchase) return;
+    const item = purchase.items.find((i) => i.id === id);
+    if (!item) return;
+    const list = [...item.images];
+    for (const f of Array.from(files)) {
+      if (!f.type.startsWith('image/')) continue;
+      if (list.length >= 6) {
+        useStore.getState().showToast('每项最多 6 张图片');
+        break;
+      }
+      const blob = await compressImage(f);
+      const key = `pimg_${uid('i')}`;
+      await putBlob(key, blob);
+      list.push({ id: uid('pim'), blobKey: key, name: f.name });
+    }
+    setField(id, { images: list });
+  };
+
   // ---------- 空状态 ----------
   if (!purchase) {
     return (
@@ -404,6 +432,8 @@ export default function Purchase() {
                   <th className="w-price">单价</th>
                   <th className="w-total">小计</th>
                   <th className="w-prio">优先级</th>
+                  <th className="w-note">备注</th>
+                  <th className="w-link">购买链接</th>
                   <th className="w-att">附件</th>
                   <th className="w-more"></th>
                 </tr>
@@ -472,7 +502,38 @@ export default function Purchase() {
                         </select>
                       )}
                     </td>
-                    <td className="w-att">{it.images.length ? `${it.images.length} 图` : '—'}</td>
+                    <td className="w-note">
+                      {done || !isDesktopLayout ? (
+                        <span className="p-cell-text">{it.note || '—'}</span>
+                      ) : (
+                        <input
+                          className="p-inline p-inline-note"
+                          value={it.note}
+                          placeholder="备注"
+                          onChange={(e) => setField(it.id, { note: sanitizeText(e.target.value, { multiline: false, max: 500 }) })}
+                        />
+                      )}
+                    </td>
+                    <td className="w-link">
+                      {done || !isDesktopLayout ? (
+                        it.link ? <button className="p-cell-link" onClick={() => window.open(it.link, '_blank', 'noopener')}>打开</button> : <span className="p-cell-text">—</span>
+                      ) : (
+                        <input
+                          className="p-inline p-inline-link"
+                          value={it.link}
+                          placeholder="https://…"
+                          onChange={(e) => setField(it.id, { link: e.target.value })}
+                          onBlur={(e) => setField(it.id, { link: normalizeLink(e.target.value) })}
+                        />
+                      )}
+                    </td>
+                    <td className="w-att">
+                      {!done ? (
+                        <button className={'p-att' + (it.images.length ? '' : ' empty')} onClick={() => pickAttach(it.id)}>
+                          {it.images.length ? `${it.images.length} 图` : '＋'}
+                        </button>
+                      ) : it.images.length ? `${it.images.length} 图` : '—'}
+                    </td>
                     <td className="w-more">
                       {!done && (
                         <button
@@ -490,16 +551,16 @@ export default function Purchase() {
                   </tr>
                 ))}
                 {!catItems.length && (
-                  <tr><td colSpan={8} className="p-empty-row">这个分类还没有物品</td></tr>
+                  <tr><td colSpan={10} className="p-empty-row">这个分类还没有物品</td></tr>
                 )}
                 {!done && activeCategory?.status === 'open' && (
-                  <tr><td colSpan={8} className="p-add-row"><button onClick={addRow}>＋ 添加一行</button></td></tr>
+                  <tr><td colSpan={10} className="p-add-row"><button onClick={addRow}>＋ 添加一行</button></td></tr>
                 )}
               </tbody>
             </table>
           </div>
           <div className="tiny p-scroll-hint">
-            {isDesktopLayout ? '格子里可直接填写名称、规格、单位、数量、单价与优先级；链接、备注和图片点最右侧「⋯」补充。' : '表格可左右滑动，名称列固定在左侧；点一行补充规格、链接、备注和图片。'}
+            {isDesktopLayout ? '格子里可直接填写名称、规格、单位、数量、单价、优先级、备注和链接；点附件列的「＋」上传图片。' : '表格可左右滑动，名称列固定在左侧；附件列可直接上传图片。'}
           </div>
           <div className="p-foot-hint">
             填完本分类后点右上角「完成本分类」；全部分类处理完才会出现「完成清单」。
@@ -507,6 +568,7 @@ export default function Purchase() {
         </main>
       </div>
 
+      <input ref={attachRef} type="file" accept="image/*" multiple hidden onChange={(e) => { void onAttachFiles(e.target.files); e.target.value = ''; }} />
       <div style={{ height: 80 }} />
       <div className="p-actions">
         {done ? (

@@ -643,3 +643,19 @@ button { border: 0; background: none; padding: 0; cursor: pointer; }
 .p-menu-ico { width: 16px; text-align: center; font-size: 15px; color: var(--text2); }
 .p-menu button.danger .p-menu-ico { color: var(--red); }
 .p-menu-sep { height: 1px; background: var(--line); margin: 5px 8px; }
+
+/* 表格列宽微调 */
+.p-desktop .p-table .sticky { min-width: 200px; width: 200px; }
+.w-unit { width: 44px; } .w-num { width: 54px; } .w-price { width: 80px; } .w-total { width: 86px; }
+.w-prio { width: 52px; } .w-note { width: 150px; } .w-link { width: 120px; } .w-att { width: 50px; } .w-more { width: 30px; }
+
+.p-att {
+  min-width: 34px; height: 26px; padding: 0 8px; border-radius: 8px;
+  background: rgba(10,132,255,.10); color: var(--blue);
+  font-size: 11.5px; font-weight: 600;
+}
+.p-att.empty { background: rgba(120,120,128,.10); color: var(--text2); }
+.p-cell-text { display: block; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--text2); }
+.p-cell-link { color: var(--blue); font-size: 12px; font-weight: 600; }
+.p-inline-note { font-size: 11.5px; color: var(--text2); }
+.p-inline-link { font-size: 11px; color: var(--blue); }
