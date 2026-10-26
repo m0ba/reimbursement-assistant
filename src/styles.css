@@ -454,8 +454,6 @@ button { border: 0; background: none; padding: 0; cursor: pointer; }
     height: 100vh;
     overflow-y: auto;
     background: transparent;
-    border-left: 1px solid rgba(60, 60, 67, 0.08);
-    border-right: 1px solid rgba(60, 60, 67, 0.08);
     border-radius: 0;
     box-shadow: none;
   }
@@ -613,3 +611,13 @@ button { border: 0; background: none; padding: 0; cursor: pointer; }
 }
 
 .p-scroll-hint { margin: 8px 4px 0; line-height: 1.5; }
+
+.narrow-hint {
+  margin: 6px 16px 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(255,159,10,.12);
+  color: #8a5300;
+  font-size: 12px;
+  line-height: 1.5;
+}

@@ -97,8 +97,8 @@ if (!app.requestSingleInstanceLock()) {
     const origin = `http://127.0.0.1:${port}`;
 
     const win = new BrowserWindow({
-      width: 1120,
-      height: 860,
+      width: 1240,
+      height: 880,
       minWidth: 380,
       minHeight: 560,
       title: '报销助手',
