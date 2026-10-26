@@ -39,6 +39,8 @@ async function compressImage(file: File): Promise<Blob> {
 
 export default function Purchase() {
   const purchase = useStore((s) => s.purchase);
+  const layoutPref = useStore((s) => s.settings.purchaseLayout);
+  const setSettings = useStore((s) => s.setSettings);
   const setPurchase = useStore((s) => s.setPurchase);
   const patchPurchase = useStore((s) => s.patchPurchase);
   const setView = useStore((s) => s.setView);
@@ -53,6 +55,9 @@ export default function Purchase() {
   const [busy, setBusy] = useState(false);
   const [exported, setExported] = useState(false);
   const [addCatOpen, setAddCatOpen] = useState(false);
+  const [layoutAsk, setLayoutAsk] = useState(false);
+  const [vpWidth, setVpWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+  const [focusId, setFocusId] = useState<string | null>(null);
   const [newCat, setNewCat] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -67,6 +72,21 @@ export default function Purchase() {
   }, [purchase?.categories?.length, activeCat]);
 
   useEffect(() => {
+    const onResize = () => setVpWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  useEffect(() => {
+    if (vpWidth >= 860 || layoutPref !== 'ask') return;
+    const fine = window.matchMedia('(pointer: fine)').matches;
+    if (fine && !sessionStorage.getItem('purchase-layout-asked')) {
+      sessionStorage.setItem('purchase-layout-asked', '1');
+      setLayoutAsk(true);
+    }
+  }, [vpWidth, layoutPref]);
+
+  useEffect(() => {
     if (purchase) return;
     if (Capacitor.isNativePlatform() && !sessionStorage.getItem('purchase-mobile-hint')) {
       sessionStorage.setItem('purchase-mobile-hint', '1');
@@ -79,6 +99,7 @@ export default function Purchase() {
   const catItems = items.filter((i) => i.category === activeCat);
   const activeCategory = cats.find((c) => c.name === activeCat);
   const total = purchase ? listTotal(purchase) : 0;
+  const isDesktopLayout = layoutPref === 'desktop' || (layoutPref !== 'mobile' && vpWidth >= 860);
   const resolved = cats.filter(categoryResolved).length;
   const allResolved = cats.length > 0 && resolved === cats.length;
   const groups = useMemo(() => (purchase ? groupByCategory(purchase) : []), [purchase]);
@@ -113,7 +134,8 @@ export default function Purchase() {
       priority: 'mid', link: '', note: '', images: [],
     };
     patchItems((list) => [...list, it]);
-    setEditing({ item: it, isNew: true });
+    setFocusId(it.id);
+    window.setTimeout(() => setFocusId(null), 50);
   };
 
   const openDetail = (id: string) => {
@@ -298,7 +320,7 @@ export default function Purchase() {
   const done = purchase.done;
 
   return (
-    <div className="page purchase-page">
+    <div className={"page purchase-page " + (isDesktopLayout ? "p-desktop" : "p-mobile")}>
       <div className="card">
         <div className="row between">
           <input
@@ -395,14 +417,24 @@ export default function Purchase() {
                           ) : (
                             <input
                               className="p-inline p-inline-name"
+                              autoFocus={focusId === it.id}
                               value={it.name}
                               placeholder="填写名称"
                               onChange={(e) => setField(it.id, { name: sanitizeText(e.target.value, { max: 60 }) })}
                             />
                           )}
-                          <button className="p-spec" onClick={() => openDetail(it.id)}>
-                            {it.spec || '＋ 规格 / 链接 / 备注 / 图片'}
-                          </button>
+                          {!done && isDesktopLayout ? (
+                            <input
+                              className="p-inline p-inline-spec"
+                              value={it.spec}
+                              placeholder="规格 / 配置"
+                              onChange={(e) => setField(it.id, { spec: sanitizeText(e.target.value, { multiline: false, max: 300 }) })}
+                            />
+                          ) : (
+                            <button className="p-spec" onClick={() => openDetail(it.id)}>
+                              {it.spec || '＋ 规格 / 链接 / 备注 / 图片'}
+                            </button>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -422,7 +454,21 @@ export default function Purchase() {
                       )}
                     </td>
                     <td className="w-total money">{itemTotal(it) === null ? '—' : money(itemTotal(it)!)}</td>
-                    <td className="w-prio"><span className="p-prio-tag" style={{ color: PRIORITY_COLOR[it.priority] }}>{PRIORITY_LABEL[it.priority]}</span></td>
+                    <td className="w-prio">
+                      {done || !isDesktopLayout ? (
+                        <span className="p-prio-tag" style={{ color: PRIORITY_COLOR[it.priority] }}>{PRIORITY_LABEL[it.priority]}</span>
+                      ) : (
+                        <select
+                          className="p-inline p-prio-select"
+                          value={it.priority}
+                          onChange={(e) => setField(it.id, { priority: e.target.value as PurchasePriority })}
+                        >
+                          <option value="high">高</option>
+                          <option value="mid">中</option>
+                          <option value="low">低</option>
+                        </select>
+                      )}
+                    </td>
                     <td className="w-att">{it.images.length ? `${it.images.length} 图` : '—'}</td>
                     <td className="w-more">
                       {!done && <button className="p-more" onClick={() => setMenuFor(it.id)}>⋯</button>}
@@ -438,7 +484,12 @@ export default function Purchase() {
               </tbody>
             </table>
           </div>
-          <div className="tiny p-scroll-hint">表格可左右滑动，名称列固定在左侧；点一行补充规格、链接、备注和图片。</div>
+          <div className="tiny p-scroll-hint">
+            {isDesktopLayout ? '格子里可直接填写名称、规格、单位、数量、单价与优先级；链接、备注和图片点最右侧「⋯」补充。' : '表格可左右滑动，名称列固定在左侧；点一行补充规格、链接、备注和图片。'}
+          </div>
+          <div className="p-foot-hint">
+            填完本分类后点右上角「完成本分类」；全部分类处理完才会出现「完成清单」。
+          </div>
         </main>
       </div>
 
@@ -546,6 +597,18 @@ export default function Purchase() {
           />
         </div>
         <button className="btn primary wide" onClick={addCategory} disabled={!newCat.trim()}>添加</button>
+      </Sheet>
+
+      <Sheet
+        open={layoutAsk}
+        onClose={() => { setSettings({ purchaseLayout: 'mobile' }); setLayoutAsk(false); }}
+        title="窗口变窄了"
+        lead="可以保持桌面表格（内容多时左右滑动），也可以切换成手机布局。之后可在设置里再改回。"
+      >
+        <div className="row" style={{ gap: 10 }}>
+          <button className="btn grow" onClick={() => { setSettings({ purchaseLayout: 'desktop' }); setLayoutAsk(false); }}>保持桌面布局</button>
+          <button className="btn primary grow" onClick={() => { setSettings({ purchaseLayout: 'mobile' }); setLayoutAsk(false); }}>切换手机布局</button>
+        </div>
       </Sheet>
 
       <Confirm

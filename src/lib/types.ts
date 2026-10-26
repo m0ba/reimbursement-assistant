@@ -126,6 +126,7 @@ export interface Settings {
   introSeen: boolean;
   trajPerPage: 20 | 15 | 12;
   mirrorCustom: string;
+  purchaseLayout: 'ask' | 'desktop' | 'mobile';
 }
 
 export interface TaskState {

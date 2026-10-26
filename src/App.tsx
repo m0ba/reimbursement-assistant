@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useStore } from './lib/store';
 import { TaskBadge } from './components/TaskBadge';
 import { Intro } from './components/Intro';
@@ -19,16 +19,6 @@ export default function App() {
   const savedFile = useStore((s) => s.savedFile);
   const setSavedFile = useStore((s) => s.setSavedFile);
   const isDesktop = !!(window as any).desktopApp?.platform;
-  const [narrow, setNarrow] = useState(false);
-
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 859px)');
-    const fine = window.matchMedia('(pointer: fine)');
-    const update = () => setNarrow(mq.matches && (!!(window as any).desktopApp?.platform || fine.matches));
-    update();
-    mq.addEventListener('change', update);
-    return () => mq.removeEventListener('change', update);
-  }, []);
 
   const openSavedFile = async () => {
     if (!savedFile) return;
@@ -88,10 +78,6 @@ export default function App() {
           </button>
         )}
       </div>
-
-      {narrow && (
-        <div className="narrow-hint">窗口较窄，已切换为手机布局；把窗口拉宽可以显示完整表格。</div>
-      )}
 
       {view === 'home' && <Home />}
       {view === 'invoices' && <Invoices />}
