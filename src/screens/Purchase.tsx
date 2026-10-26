@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Capacitor } from '@capacitor/core';
 import { useStore } from '../lib/store';
@@ -6,10 +6,10 @@ import { Confirm, Sheet } from '../components/Sheet';
 import { IconCheck, IconClose, IconCopy, IconDownload, IconPlus, IconTrash, IconBox } from '../components/Icons';
 import { putBlob, uid, downloadBlob } from '../lib/db';
 import { useBlobUrl } from '../components/PdfThumb';
-import type { PurchaseCategory, PurchaseItem, PurchasePriority } from '../lib/types';
+import type { PurchaseItem, PurchasePriority } from '../lib/types';
 import {
-  createPurchaseList, ensureCategories, groupByCategory, itemTotal, listTotal,
-  normalizeLink, sanitizeText, sanitizeUnit, validateItem, validateList, categoryResolved,
+  createPurchaseList, ensureCategories, itemTotal, listTotal,
+  normalizeLink, sanitizeText, sanitizeUnit, validateItem, validateList,
   PRIORITY_COLOR, PRIORITY_LABEL, PURCHASE_CATEGORIES, PURCHASE_UNITS, type ItemError,
 } from '../lib/purchase';
 import { buildPurchaseXlsx } from '../lib/purchaseExcel';
@@ -50,7 +50,7 @@ export default function Purchase() {
   const [editing, setEditing] = useState<{ item: PurchaseItem; isNew?: boolean } | null>(null);
   const [errors, setErrors] = useState<ItemError[]>([]);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
-  const [confirmKind, setConfirmKind] = useState<null | 'finish' | 'rollback' | 'delete' | 'clear' | 'export' | 'new' | 'catDone' | 'catNone' | 'catUndo'>(null);
+  const [confirmKind, setConfirmKind] = useState<null | 'finish' | 'rollback' | 'delete' | 'clear' | 'export' | 'new'>(null);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [hintOpen, setHintOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -99,12 +99,9 @@ export default function Purchase() {
   const cats = purchase?.categories || [];
   const items = purchase?.items || [];
   const catItems = items.filter((i) => i.category === activeCat);
-  const activeCategory = cats.find((c) => c.name === activeCat);
   const total = purchase ? listTotal(purchase) : 0;
   const isDesktopLayout = layoutPref === 'desktop' || (layoutPref !== 'mobile' && vpWidth >= 860);
-  const resolved = cats.filter(categoryResolved).length;
-  const allResolved = cats.length > 0 && resolved === cats.length;
-  const groups = useMemo(() => (purchase ? groupByCategory(purchase) : []), [purchase]);
+  const filledCats = cats.filter((c) => items.some((i) => i.category === c.name)).length;
 
   const start = () => {
     const list = createPurchaseList();
@@ -207,11 +204,6 @@ export default function Purchase() {
     useStore.getState().showToast(`已删除「${item?.name || '未命名'}」`);
   };
 
-  const setCategoryStatus = (name: string, status: PurchaseCategory['status']) => {
-    if (!purchase) return;
-    patchPurchase({ categories: purchase.categories.map((c) => (c.name === name ? { ...c, status } : c)) });
-  };
-
   const addCategory = () => {
     if (!purchase) return;
     const name = sanitizeText(newCat, { max: 10 });
@@ -228,11 +220,6 @@ export default function Purchase() {
 
   const finish = () => {
     if (!purchase) return;
-    if (!allResolved) {
-      useStore.getState().showToast('还有分类没有填写完成');
-      setConfirmKind(null);
-      return;
-    }
     const errs = validateList(purchase);
     if (errs.length) {
       setErrors(errs);
@@ -243,6 +230,18 @@ export default function Purchase() {
     patchPurchase({ done: true, doneAt: Date.now() });
     setConfirmKind(null);
     useStore.getState().showToast('已完成，可以导出 Excel');
+  };
+
+  const requestFinish = () => {
+    if (!purchase) return;
+    const errs = validateList(purchase);
+    if (errs.length) {
+      setErrors(errs);
+      useStore.getState().showToast(errs[0].message);
+      return;
+    }
+    setErrors([]);
+    setConfirmKind('finish');
   };
 
   const rollback = () => {
@@ -331,7 +330,7 @@ export default function Purchase() {
           <div className="p-empty">
             <span className="p-empty-ico"><IconBox size={22} /></span>
             <div style={{ fontWeight: 600, marginTop: 10 }}>还没有采购清单</div>
-            <div className="tiny" style={{ marginTop: 4 }}>按分类逐项填写，一行一个物品，完成后导出 Excel</div>
+            <div className="tiny" style={{ marginTop: 4 }}>只填需要的分类，一行一个物品，完成后导出 Excel</div>
           </div>
           <button className="btn primary wide" style={{ marginTop: 14 }} onClick={start}>
             <IconPlus size={18} /> 开始填写
@@ -363,16 +362,11 @@ export default function Purchase() {
           <span className={'chip ' + (done ? 'ok' : 'warn')}>{done ? '已完成' : '草稿'}</span>
         </div>
         <div className="p-sum">
-          <span>{items.length} 项 · 已填 {resolved}/{cats.length}</span>
+          <span>{items.length} 项 · {filledCats} 个分类有内容</span>
           <b>¥{money(total)}</b>
         </div>
-        <div className="p-progress"><i style={{ width: `${cats.length ? (resolved / cats.length) * 100 : 0}%` }} /></div>
         {done && <div className="tiny" style={{ marginTop: 8 }}>已完成，如需修改请点「打回修改」</div>}
-        {!done && allResolved && (
-          <button className="btn primary wide" style={{ marginTop: 12 }} onClick={() => setConfirmKind('finish')}>
-            <IconCheck size={18} /> 完成清单
-          </button>
-        )}
+        {!done && <div className="tiny" style={{ marginTop: 8 }}>空分类不用处理，至少填写 1 项即可完成。</div>}
       </div>
 
       <div className="p-layout">
@@ -383,20 +377,19 @@ export default function Purchase() {
             return (
               <button key={c.name} className={'p-cat' + (c.name === activeCat ? ' on' : '')} onClick={() => setActiveCat(c.name)}>
                 <span>{c.name}</span>
-                <span className="p-cat-n">{c.status === 'none' ? '无' : n}</span>
+                <span className="p-cat-n">{n}</span>
               </button>
             );
           })}
           {!done && <button className="p-cat p-cat-add" onClick={() => setAddCatOpen(true)}>＋ 分类</button>}
-          <div className="tiny" style={{ marginTop: 12 }}>{resolved}/{cats.length}</div>
-          <div className="progress-track" style={{ marginTop: 6 }}><i style={{ width: `${cats.length ? (resolved / cats.length) * 100 : 0}%` }} /></div>
+          <div className="tiny" style={{ marginTop: 12, lineHeight: 1.45 }}>{filledCats} 类有内容<br />其余可留空</div>
         </aside>
 
         <main className="p-main">
           <div className="p-tabs">
             {cats.map((c) => (
               <button key={c.name} className={'tabx' + (c.name === activeCat ? ' on' : '')} onClick={() => setActiveCat(c.name)}>
-                {c.name}<span>{c.status === 'none' ? '无' : items.filter((i) => i.category === c.name).length}</span>
+                {c.name}<span>{items.filter((i) => i.category === c.name).length}</span>
               </button>
             ))}
             {!done && <button className="tabx" onClick={() => setAddCatOpen(true)}>＋</button>}
@@ -407,18 +400,7 @@ export default function Purchase() {
               <div className="p-cat-title">{activeCat}</div>
               <div className="tiny">{catItems.length} 项 · 小计 ¥{money(catItems.reduce((s, i) => s + (itemTotal(i) ?? 0), 0))}</div>
             </div>
-            <div className="row" style={{ gap: 8 }}>
-              {activeCategory?.status === 'done' && <span className="chip ok">本类已完成</span>}
-              {activeCategory?.status === 'none' && <span className="chip">本类无采购</span>}
-              {!done && activeCategory?.status === 'open' && (
-                <button className="dl-btn tint" onClick={() => setConfirmKind(catItems.length ? 'catDone' : 'catNone')}>
-                  {catItems.length ? '完成本分类' : '本类无采购'}
-                </button>
-              )}
-              {!done && activeCategory?.status !== 'open' && (
-                <button className="dl-btn" onClick={() => setCategoryStatus(activeCat, 'open')}>打回本类</button>
-              )}
-            </div>
+            {!catItems.length && <span className="chip">可跳过</span>}
           </div>
 
           <div className="p-table-wrap">
@@ -551,9 +533,9 @@ export default function Purchase() {
                   </tr>
                 ))}
                 {!catItems.length && (
-                  <tr><td colSpan={10} className="p-empty-row">这个分类还没有物品</td></tr>
+                  <tr><td colSpan={10} className="p-empty-row">这个分类先留空，也可以直接点下面添加</td></tr>
                 )}
-                {!done && activeCategory?.status === 'open' && (
+                {!done && (
                   <tr><td colSpan={10} className="p-add-row"><button onClick={addRow}>＋ 添加一行</button></td></tr>
                 )}
               </tbody>
@@ -563,7 +545,7 @@ export default function Purchase() {
             {isDesktopLayout ? '格子里可直接填写名称、规格、单位、数量、单价、优先级、备注和链接；点附件列的「＋」上传图片。' : '表格可左右滑动，名称列固定在左侧；附件列可直接上传图片。'}
           </div>
           <div className="p-foot-hint">
-            填完本分类后点右上角「完成本分类」；全部分类处理完才会出现「完成清单」。
+            只填写这次要买的分类即可，空分类会自动跳过；至少填写 1 项后就能完成并导出。
           </div>
         </main>
       </div>
@@ -580,9 +562,10 @@ export default function Purchase() {
           </>
         ) : (
           <>
-            <button className="btn grow" onClick={() => goCat(-1)}>上一分类</button>
-            <button className="btn primary grow" onClick={() => goCat(1)} disabled={cats.findIndex((c) => c.name === activeCat) >= cats.length - 1}>
-              下一分类
+            <button className="btn" onClick={() => goCat(-1)} disabled={cats.findIndex((c) => c.name === activeCat) <= 0}>上一类</button>
+            <button className="btn" onClick={() => goCat(1)} disabled={cats.findIndex((c) => c.name === activeCat) >= cats.length - 1}>下一类</button>
+            <button className="btn primary grow" onClick={requestFinish} disabled={!items.length}>
+              <IconCheck size={17} /> {items.length ? '完成清单' : '至少填 1 项'}
             </button>
           </>
         )}
@@ -709,25 +692,9 @@ export default function Purchase() {
       </Sheet>
 
       <Confirm
-        open={confirmKind === 'catDone'}
-        title="完成本分类？"
-        body={`「${activeCat}」共 ${catItems.length} 项，小计 ¥${money(catItems.reduce((s, i) => s + (itemTotal(i) ?? 0), 0))}。完成后仍可「打回本类」。`}
-        confirmText="完成本类"
-        onClose={() => setConfirmKind(null)}
-        onConfirm={() => { setCategoryStatus(activeCat, 'done'); setConfirmKind(null); useStore.getState().showToast('本分类已完成'); }}
-      />
-      <Confirm
-        open={confirmKind === 'catNone'}
-        title="本分类没有采购？"
-        body={`将把「${activeCat}」标记为无采购，不计入清单。之后可以「打回本类」恢复。`}
-        confirmText="本类无采购"
-        onClose={() => setConfirmKind(null)}
-        onConfirm={() => { setCategoryStatus(activeCat, 'none'); setConfirmKind(null); useStore.getState().showToast('已标记本类无采购'); }}
-      />
-      <Confirm
         open={confirmKind === 'finish'}
         title="完成这份清单？"
-        body={`共 ${items.length} 项，合计 ¥${money(total)}。完成后会锁定，需要时可「打回修改」。`}
+        body={`共 ${items.length} 项，使用 ${filledCats} 个分类，合计 ¥${money(total)}。空分类会自动跳过；完成后会锁定，需要时可「打回修改」。`}
         confirmText="确认完成"
         cancelText="再检查一下"
         onClose={() => setConfirmKind(null)}
