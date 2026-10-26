@@ -121,6 +121,7 @@ export default function Settings() {
   const [custom, setCustom] = useState(settings.mirrorCustom || '');
   const [probing, setProbing] = useState(false);
   const [dl, setDl] = useState<DlInfo | null>(dlCache);
+  const [dlOpen, setDlOpen] = useState(false);
   const batches = useStore((s) => s.batches);
   const files = useStore((s) => s.files);
   const mirrorPrefix = settings.mirrorCustom || MIRRORS[0].prefix;
@@ -404,13 +405,19 @@ export default function Settings() {
         </p>
 
         <div className="divider" />
-        <div className="row between" style={{ width: '100%', padding: '2px 0' }}>
+        <button
+          className="row between"
+          style={{ width: '100%', padding: '2px 0' }}
+          onClick={() => setDlOpen((v) => !v)}
+          aria-expanded={dlOpen}
+        >
           <span style={{ fontWeight: 600 }}>下载安装包</span>
           <span className="row" style={{ gap: 6 }}>
             {dl?.version && <span className="tiny muted mono">v{dl.version}</span>}
+            <span style={{ display: 'inline-flex', color: 'var(--text3)', fontSize: 20, lineHeight: 1, transition: 'transform .2s ease', transform: dlOpen ? 'rotate(90deg)' : 'none' }}>›</span>
           </span>
-        </div>
-        {(() => {
+        </button>
+        {dlOpen && (() => {
           const info = dl || {
             version: APP_VERSION,
             apk: `${DOWNLOAD_BASE}/v${APP_VERSION}/reimbursement-${APP_VERSION}.apk`,
