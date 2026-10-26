@@ -57,6 +57,7 @@ export default function Purchase() {
   const [exported, setExported] = useState(false);
   const [addCatOpen, setAddCatOpen] = useState(false);
   const [layoutAsk, setLayoutAsk] = useState(false);
+  const wasNarrow = useRef(false);
   const [vpWidth, setVpWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [attachFor, setAttachFor] = useState<string | null>(null);
@@ -81,12 +82,10 @@ export default function Purchase() {
   }, []);
 
   useEffect(() => {
-    if (vpWidth >= 860 || layoutPref !== 'ask') return;
+    const narrow = vpWidth < 860;
     const fine = window.matchMedia('(pointer: fine)').matches;
-    if (fine && !sessionStorage.getItem('purchase-layout-asked')) {
-      sessionStorage.setItem('purchase-layout-asked', '1');
-      setLayoutAsk(true);
-    }
+    if (narrow && !wasNarrow.current && fine && layoutPref !== 'mobile') setLayoutAsk(true);
+    wasNarrow.current = narrow;
   }, [vpWidth, layoutPref]);
 
   useEffect(() => {
@@ -364,7 +363,7 @@ export default function Purchase() {
           <span className={'chip ' + (done ? 'ok' : 'warn')}>{done ? '已完成' : '草稿'}</span>
         </div>
         <div className="p-sum">
-          <span>{items.length} 项 · {resolved}/{cats.length} 分类已填</span>
+          <span>{items.length} 项 · 已填 {resolved}/{cats.length}</span>
           <b>¥{money(total)}</b>
         </div>
         <div className="p-progress"><i style={{ width: `${cats.length ? (resolved / cats.length) * 100 : 0}%` }} /></div>
@@ -388,8 +387,8 @@ export default function Purchase() {
               </button>
             );
           })}
-          {!done && <button className="p-cat p-cat-add" onClick={() => setAddCatOpen(true)}>＋ 添加分类</button>}
-          <div className="tiny" style={{ marginTop: 12 }}>{resolved}/{cats.length} 分类已填</div>
+          {!done && <button className="p-cat p-cat-add" onClick={() => setAddCatOpen(true)}>＋ 分类</button>}
+          <div className="tiny" style={{ marginTop: 12 }}>{resolved}/{cats.length}</div>
           <div className="progress-track" style={{ marginTop: 6 }}><i style={{ width: `${cats.length ? (resolved / cats.length) * 100 : 0}%` }} /></div>
         </aside>
 
@@ -432,9 +431,9 @@ export default function Purchase() {
                   <th className="w-price">单价</th>
                   <th className="w-total">小计</th>
                   <th className="w-prio">优先级</th>
-                  <th className="w-note">备注</th>
                   <th className="w-link">购买链接</th>
                   <th className="w-att">附件</th>
+                  <th className="w-note">备注</th>
                   <th className="w-more"></th>
                 </tr>
               </thead>
@@ -502,18 +501,7 @@ export default function Purchase() {
                         </select>
                       )}
                     </td>
-                    <td className="w-note">
-                      {done || !isDesktopLayout ? (
-                        <span className="p-cell-text">{it.note || '—'}</span>
-                      ) : (
-                        <input
-                          className="p-inline p-inline-note"
-                          value={it.note}
-                          placeholder="备注"
-                          onChange={(e) => setField(it.id, { note: sanitizeText(e.target.value, { multiline: false, max: 500 }) })}
-                        />
-                      )}
-                    </td>
+
                     <td className="w-link">
                       {done || !isDesktopLayout ? (
                         it.link ? <button className="p-cell-link" onClick={() => window.open(it.link, '_blank', 'noopener')}>打开</button> : <span className="p-cell-text">—</span>
@@ -533,6 +521,18 @@ export default function Purchase() {
                           {it.images.length ? `${it.images.length} 图` : '＋'}
                         </button>
                       ) : it.images.length ? `${it.images.length} 图` : '—'}
+                    </td>
+                    <td className="w-note">
+                      {done || !isDesktopLayout ? (
+                        <span className="p-cell-text">{it.note || '—'}</span>
+                      ) : (
+                        <input
+                          className="p-inline p-inline-note"
+                          value={it.note}
+                          placeholder="备注"
+                          onChange={(e) => setField(it.id, { note: sanitizeText(e.target.value, { multiline: false, max: 500 }) })}
+                        />
+                      )}
                     </td>
                     <td className="w-more">
                       {!done && (

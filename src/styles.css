@@ -592,12 +592,12 @@ button { border: 0; background: none; padding: 0; cursor: pointer; }
 .p-more { color: var(--text3); font-size: 18px; padding: 2px 6px; }
 
 .p-desktop .p-layout { display: flex; gap: 14px; align-items: flex-start; }
-.p-desktop .p-side { display: block; width: 148px; flex: none; background: #fff; border-radius: 14px; padding: 10px 8px; box-shadow: 0 2px 10px rgba(0,0,0,.04); }
+.p-desktop .p-side { display: block; width: 74px; flex: none; background: #fff; border-radius: 14px; padding: 10px 8px; box-shadow: 0 2px 10px rgba(0,0,0,.04); }
 .p-desktop .p-main { flex: 1; min-width: 0; }
 .p-desktop .p-tabs { display: none; }
-.p-desktop .p-cat { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 7px 8px; border-radius: 9px; font-size: 13px; color: var(--text); margin-bottom: 2px; text-align: left; }
+.p-desktop .p-cat { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 6px 5px; border-radius: 8px; font-size: 12px; color: var(--text); margin-bottom: 2px; text-align: left; }
 .p-desktop .p-cat.on { background: var(--bg); font-weight: 600; }
-.p-desktop .p-cat-n { color: var(--text3); font-size: 11px; }
+.p-desktop .p-cat-n { color: var(--text3); font-size: 10px; }
 .p-desktop .p-cat-add { color: var(--blue); font-size: 12.5px; }
 .p-desktop .p-table-wrap { max-height: 66vh; }
 .p-desktop .p-table .sticky { min-width: 240px; }
@@ -645,9 +645,9 @@ button { border: 0; background: none; padding: 0; cursor: pointer; }
 .p-menu-sep { height: 1px; background: var(--line); margin: 5px 8px; }
 
 /* 表格列宽微调 */
-.p-desktop .p-table .sticky { min-width: 200px; width: 200px; }
+.p-desktop .p-table .sticky { min-width: 300px; width: auto; }
 .w-unit { width: 44px; } .w-num { width: 54px; } .w-price { width: 80px; } .w-total { width: 86px; }
-.w-prio { width: 52px; } .w-note { width: 150px; } .w-link { width: 120px; } .w-att { width: 50px; } .w-more { width: 30px; }
+.w-prio { width: 52px; } .w-note { width: 100px; } .w-link { width: 120px; } .w-att { width: 50px; } .w-more { width: 15px; }
 
 .p-att {
   min-width: 34px; height: 26px; padding: 0 8px; border-radius: 8px;
@@ -659,3 +659,14 @@ button { border: 0; background: none; padding: 0; cursor: pointer; }
 .p-cell-link { color: var(--blue); font-size: 12px; font-weight: 600; }
 .p-inline-note { font-size: 11.5px; color: var(--text2); }
 .p-inline-link { font-size: 11px; color: var(--blue); }
+
+/* 紧凑侧栏与宽名称列（v0.4.10） */
+.p-desktop .p-side { width: 74px; padding: 8px 6px; }
+.p-desktop .p-cat { font-size: 12px; padding: 6px 5px; }
+.p-desktop .p-cat-n { font-size: 10px; }
+.p-desktop .p-cat-add { font-size: 10.5px; }
+.p-desktop .p-side .tiny { font-size: 10px; line-height: 1.35; }
+.p-desktop .p-table .sticky { min-width: 300px; width: auto; }
+.w-note { width: 100px; }
+.w-more { width: 16px; }
+.p-more { padding: 0 2px; font-size: 16px; }
