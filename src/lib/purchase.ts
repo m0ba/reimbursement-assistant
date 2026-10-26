@@ -1,5 +1,5 @@
 import { uid } from './db';
-import type { PurchaseItem, PurchaseList, PurchasePriority } from './types';
+import type { PurchaseCategory, PurchaseItem, PurchaseList, PurchasePriority } from './types';
 
 export const PURCHASE_CATEGORIES = ['设备', '耗材', '网络', '办公', '其他'];
 export const PURCHASE_UNITS = ['个', '件', '台', '套', '箱', '包', '卷', '米', '公斤'];
@@ -32,14 +32,27 @@ export function createPurchaseItem(): PurchaseItem {
 }
 
 export function createPurchaseList(): PurchaseList {
+  const categories: PurchaseCategory[] = PURCHASE_CATEGORIES.map((name) => ({ name, status: 'open' }));
   return {
     id: uid('pl'),
     name: todayName(),
     createdAt: Date.now(),
     updatedAt: Date.now(),
     done: false,
-    items: [createPurchaseItem()],
+    items: [],
+    categories,
   };
+}
+
+export function ensureCategories(list: PurchaseList): PurchaseList {
+  if (list.categories?.length) return list;
+  const names = new Set<string>(PURCHASE_CATEGORIES);
+  for (const it of list.items || []) if (it.category) names.add(it.category);
+  return { ...list, categories: Array.from(names).map((name) => ({ name, status: 'open' as const })) };
+}
+
+export function categoryResolved(c: PurchaseCategory) {
+  return c.status === 'done' || c.status === 'none';
 }
 
 export function sanitizeText(value: string, opts: { multiline?: boolean; max?: number } = {}) {

@@ -2,27 +2,22 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { useStore } from '../lib/store';
 import { Confirm, Sheet } from '../components/Sheet';
-import { IconBack, IconCheck, IconDownload, IconPlus, IconTrash, IconCopy, IconBox, IconClose } from '../components/Icons';
-import { putBlob, uid, stamp, downloadBlob } from '../lib/db';
+import { IconCheck, IconClose, IconCopy, IconDownload, IconPlus, IconTrash, IconBox } from '../components/Icons';
+import { putBlob, uid, downloadBlob } from '../lib/db';
 import { useBlobUrl } from '../components/PdfThumb';
-import type { PurchaseItem, PurchasePriority } from '../lib/types';
+import type { PurchaseCategory, PurchaseItem, PurchasePriority } from '../lib/types';
 import {
-  createPurchaseItem, createPurchaseList, groupByCategory, itemTotal, listTotal,
-  normalizeLink, sanitizeText, sanitizeUnit, validateItem, validateList, PRIORITY_COLOR, PRIORITY_LABEL,
-  PURCHASE_CATEGORIES, PURCHASE_UNITS, type ItemError,
+  createPurchaseList, ensureCategories, groupByCategory, itemTotal, listTotal,
+  normalizeLink, sanitizeText, sanitizeUnit, validateItem, validateList, categoryResolved,
+  PRIORITY_COLOR, PRIORITY_LABEL, PURCHASE_CATEGORIES, PURCHASE_UNITS, type ItemError,
 } from '../lib/purchase';
 import { buildPurchaseXlsx } from '../lib/purchaseExcel';
 
 const money = (n: number) => n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-function Thumb({ item }: { item: PurchaseItem }) {
-  const first = item.images[0];
-  return <>{first ? <ItemImg blobKey={first.blobKey} /> : null}</>;
-}
-
-function ItemImg({ blobKey }: { blobKey: string }) {
+function ItemImg({ blobKey, className = 'p-thumb' }: { blobKey: string; className?: string }) {
   const url = useBlobUrl(blobKey);
-  return url ? <img src={url} alt="" className="p-thumb" /> : <div className="p-thumb shimmer" />;
+  return url ? <img src={url} alt="" className={className} /> : <div className={className + ' shimmer'} />;
 }
 
 async function compressImage(file: File): Promise<Blob> {
@@ -47,103 +42,176 @@ export default function Purchase() {
   const setPurchase = useStore((s) => s.setPurchase);
   const patchPurchase = useStore((s) => s.patchPurchase);
   const setView = useStore((s) => s.setView);
-  const [editing, setEditing] = useState<{ index: number; item: PurchaseItem; isNew?: boolean } | null>(null);
+
+  const [activeCat, setActiveCat] = useState('');
+  const [editing, setEditing] = useState<{ item: PurchaseItem; isNew?: boolean } | null>(null);
   const [errors, setErrors] = useState<ItemError[]>([]);
   const [menuFor, setMenuFor] = useState<string | null>(null);
-  const [confirmKind, setConfirmKind] = useState<null | 'finish' | 'rollback' | 'delete' | 'clear' | 'export' | 'new'>(null);
+  const [confirmKind, setConfirmKind] = useState<null | 'finish' | 'rollback' | 'delete' | 'clear' | 'export' | 'new' | 'catDone' | 'catNone' | 'catUndo'>(null);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [hintOpen, setHintOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [exported, setExported] = useState(false);
+  const [addCatOpen, setAddCatOpen] = useState(false);
+  const [newCat, setNewCat] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const items = purchase?.items || [];
-  const total = purchase ? listTotal(purchase) : 0;
-  const groups = useMemo(() => (purchase ? groupByCategory(purchase) : []), [purchase]);
+  useEffect(() => {
+    if (!purchase) return;
+    if (!purchase.categories?.length) setPurchase(ensureCategories(purchase));
+  }, [purchase?.id]);
+
+  useEffect(() => {
+    if (!purchase) return;
+    if (!activeCat || !purchase.categories.some((c) => c.name === activeCat)) setActiveCat(purchase.categories[0]?.name || '');
+  }, [purchase?.categories?.length, activeCat]);
 
   useEffect(() => {
     if (purchase) return;
-    const native = Capacitor.isNativePlatform();
-    if (native && !sessionStorage.getItem('purchase-mobile-hint')) {
+    if (Capacitor.isNativePlatform() && !sessionStorage.getItem('purchase-mobile-hint')) {
       sessionStorage.setItem('purchase-mobile-hint', '1');
       setHintOpen(true);
     }
   }, [purchase]);
 
+  const cats = purchase?.categories || [];
+  const items = purchase?.items || [];
+  const catItems = items.filter((i) => i.category === activeCat);
+  const activeCategory = cats.find((c) => c.name === activeCat);
+  const total = purchase ? listTotal(purchase) : 0;
+  const resolved = cats.filter(categoryResolved).length;
+  const allResolved = cats.length > 0 && resolved === cats.length;
+  const groups = useMemo(() => (purchase ? groupByCategory(purchase) : []), [purchase]);
+
   const start = () => {
     const list = createPurchaseList();
     setPurchase(list);
-    setEditing({ index: 0, item: list.items[0], isNew: true });
+    setActiveCat(list.categories[0].name);
   };
 
-  const openItem = (index: number) => {
+  const goCat = (dir: -1 | 1) => {
+    const idx = cats.findIndex((c) => c.name === activeCat);
+    const next = cats[idx + dir];
+    if (next) setActiveCat(next.name);
+  };
+
+  const patchItems = (fn: (list: PurchaseItem[]) => PurchaseItem[]) => {
+    if (!purchase) return;
+    patchPurchase({ items: fn(purchase.items) });
+  };
+
+  const setField = (id: string, patch: Partial<PurchaseItem>) => {
+    patchItems((list) => list.map((it) => (it.id === id ? { ...it, ...patch } : it)));
+  };
+
+  const addRow = () => {
+    if (!purchase) return;
+    const it: PurchaseItem = {
+      id: uid('pi'),
+      category: activeCat,
+      name: '', spec: '', unit: '个', qty: 1, price: null,
+      priority: 'mid', link: '', note: '', images: [],
+    };
+    patchItems((list) => [...list, it]);
+    setEditing({ item: it, isNew: true });
+  };
+
+  const openDetail = (id: string) => {
     if (purchase?.done) return;
-    setEditing({ index, item: { ...items[index], images: [...items[index].images] } });
-    setErrors([]);
+    const it = items.find((i) => i.id === id);
+    if (it) {
+      setEditing({ item: { ...it, images: [...it.images] } });
+      setErrors([]);
+    }
   };
 
   const saveEditing = () => {
-    if (!editing || !purchase) return;
-    const it = editing.item;
-    const errs = validateItem(it, editing.index);
+    if (!editing) return;
+    const errs = validateItem(editing.item, Math.max(0, items.findIndex((i) => i.id === editing.item.id)));
     if (errs.length) {
       setErrors(errs);
       useStore.getState().showToast(errs[0].message);
       return;
     }
-    const next = [...purchase.items];
-    next[editing.index] = it;
-    patchPurchase({ items: next });
+    patchItems((list) => list.map((it) => (it.id === editing.item.id ? editing.item : it)));
     setEditing(null);
     setErrors([]);
   };
 
-  const addItem = () => {
-    if (!purchase) return;
-    const it = createPurchaseItem();
-    patchPurchase({ items: [...purchase.items, it] });
-    setEditing({ index: purchase.items.length, item: it, isNew: true });
+  const cancelEditing = () => {
+    if (!editing) return;
+    if (editing.isNew) {
+      const it = editing.item;
+      const blank = !it.name.trim() && !it.spec.trim() && !it.note.trim() && !it.link.trim() && it.images.length === 0;
+      if (blank) patchItems((list) => list.filter((x) => x.id !== it.id));
+    }
+    setEditing(null);
   };
 
   const duplicate = (id: string) => {
-    if (!purchase) return;
-    const idx = purchase.items.findIndex((i) => i.id === id);
+    const idx = items.findIndex((i) => i.id === id);
     if (idx < 0) return;
-    const copy: PurchaseItem = { ...purchase.items[idx], id: uid('pi'), images: [...purchase.items[idx].images] };
-    const next = [...purchase.items];
-    next.splice(idx + 1, 0, copy);
-    patchPurchase({ items: next });
+    const copy: PurchaseItem = { ...items[idx], id: uid('pi'), images: [...items[idx].images] };
+    patchItems((list) => {
+      const next = [...list];
+      next.splice(idx + 1, 0, copy);
+      return next;
+    });
     useStore.getState().showToast('已复制这一项');
   };
 
   const move = (id: string, dir: -1 | 1) => {
-    if (!purchase) return;
-    const idx = purchase.items.findIndex((i) => i.id === id);
-    const to = idx + dir;
-    if (idx < 0 || to < 0 || to >= purchase.items.length) return;
-    const next = [...purchase.items];
-    [next[idx], next[to]] = [next[to], next[idx]];
-    patchPurchase({ items: next });
+    const idx = items.findIndex((i) => i.id === id);
+    if (idx < 0) return;
+    patchItems((list) => {
+      const next = [...list];
+      const target = next.findIndex((i) => i.id === id);
+      const to = target + dir;
+      if (to < 0 || to >= next.length) return list;
+      [next[target], next[to]] = [next[to], next[target]];
+      return next;
+    });
   };
 
   const deleteItem = (id: string) => {
-    if (!purchase) return;
-    const item = purchase.items.find((i) => i.id === id);
-    const next = purchase.items.filter((i) => i.id !== id);
-    patchPurchase({ items: next });
-    setPendingDelete(null);
+    const item = items.find((i) => i.id === id);
+    patchItems((list) => list.filter((i) => i.id !== id));
     setConfirmKind(null);
+    setPendingDelete(null);
     useStore.getState().showToast(`已删除「${item?.name || '未命名'}」`);
+  };
+
+  const setCategoryStatus = (name: string, status: PurchaseCategory['status']) => {
+    if (!purchase) return;
+    patchPurchase({ categories: purchase.categories.map((c) => (c.name === name ? { ...c, status } : c)) });
+  };
+
+  const addCategory = () => {
+    if (!purchase) return;
+    const name = sanitizeText(newCat, { max: 10 });
+    if (!name) return;
+    if (purchase.categories.some((c) => c.name === name)) {
+      useStore.getState().showToast('这个分类已经存在');
+      return;
+    }
+    patchPurchase({ categories: [...purchase.categories, { name, status: 'open' }] });
+    setActiveCat(name);
+    setNewCat('');
+    setAddCatOpen(false);
   };
 
   const finish = () => {
     if (!purchase) return;
+    if (!allResolved) {
+      useStore.getState().showToast('还有分类没有填写完成');
+      setConfirmKind(null);
+      return;
+    }
     const errs = validateList(purchase);
     if (errs.length) {
       setErrors(errs);
-      setConfirmKind(null);
-      setMenuFor(null);
       useStore.getState().showToast(errs[0].message);
+      setConfirmKind(null);
       return;
     }
     patchPurchase({ done: true, doneAt: Date.now() });
@@ -167,18 +235,11 @@ export default function Purchase() {
       const name = `采购清单_${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.xlsx`;
       const key = `blob_${uid('plxlsx')}`;
       await putBlob(key, blob);
-      useStore.getState().addFile({
-        id: uid('lib'),
-        name: name.replace(/\.xlsx$/, ''),
-        blobKey: key,
-        ext: 'xlsx',
-        createdAt: Date.now(),
-        bytes: blob.size,
-      });
+      useStore.getState().addFile({ id: uid('lib'), name: name.replace(/\.xlsx$/, ''), blobKey: key, ext: 'xlsx', createdAt: Date.now(), bytes: blob.size });
       await downloadBlob(blob, name);
       setConfirmKind(null);
       setExported(true);
-    } catch (e) {
+    } catch {
       useStore.getState().showToast('导出失败，请重试');
     } finally {
       setBusy(false);
@@ -187,25 +248,11 @@ export default function Purchase() {
 
   const newList = () => {
     setPurchase(null);
-    setConfirmKind(null);
     setEditing(null);
     setExported(false);
+    setConfirmKind(null);
+    setActiveCat('');
   };
-
-  const cancelEditing = () => {
-    if (!editing || !purchase) {
-      setEditing(null);
-      return;
-    }
-    const it = editing.item;
-    const blank = !it.name.trim() && !it.spec.trim() && !it.note.trim() && !it.link.trim() && it.images.length === 0;
-    if (editing.isNew && blank) {
-      patchPurchase({ items: purchase.items.filter((x) => x.id !== it.id) });
-    }
-    setEditing(null);
-  };
-
-  const pickImages = () => fileRef.current?.click();
 
   const onFiles = async (files: FileList | null) => {
     if (!files?.length || !editing) return;
@@ -224,226 +271,299 @@ export default function Purchase() {
     setEditing({ ...editing, item: { ...editing.item, images: list } });
   };
 
-  // ---------------- 编辑页 ----------------
-  if (editing) {
-    const it = editing.item;
-    const set = (patch: Partial<PurchaseItem>) => setEditing({ ...editing, item: { ...it, ...patch } });
-    const err = (f: keyof PurchaseItem) => errors.find((e) => e.field === f)?.message;
+  // ---------- 空状态 ----------
+  if (!purchase) {
     return (
       <div className="page purchase-page">
-        <div className="p-edit-top">
-          <button className="icon-btn" onClick={cancelEditing} aria-label="返回">
-            <IconBack />
-          </button>
-          <span className="p-edit-title">{editing.index < items.length ? '编辑条目' : '添加条目'}</span>
-          <button className="btn primary p-save" onClick={saveEditing}>保存</button>
-        </div>
-
-        <div className="card p-form">
-          <label className="fld"><span>分类</span>
-            <div className="chips">
-              {PURCHASE_CATEGORIES.map((c) => (
-                <button key={c} className={'chip' + (it.category === c ? ' on' : '')} onClick={() => set({ category: c })}>{c}</button>
-              ))}
-            </div>
-            <input value={it.category} onChange={(e) => set({ category: sanitizeText(e.target.value, { max: 10 }) })} placeholder="或输入自定义分类" />
-          </label>
-
-          <label className="fld"><span>名称 <i>*</i></span>
-            <input value={it.name} onChange={(e) => set({ name: sanitizeText(e.target.value, { max: 60 }) })} placeholder="例如：联想 ThinkPad P15" />
-            {err('name') && <em className="err">{err('name')}</em>}
-          </label>
-
-          <label className="fld"><span>规格</span>
-            <textarea rows={3} value={it.spec} onChange={(e) => set({ spec: sanitizeText(e.target.value, { multiline: true, max: 300 }) })} placeholder="CPU / 内存 / 硬盘 / 型号等" />
-          </label>
-
-          <label className="fld"><span>单位</span>
-            <div className="chips">
-              {PURCHASE_UNITS.map((u) => (
-                <button key={u} className={'chip' + (it.unit === u ? ' on' : '')} onClick={() => set({ unit: u })}>{u}</button>
-              ))}
-            </div>
-            <input value={it.unit} onChange={(e) => set({ unit: sanitizeUnit(e.target.value) })} placeholder="个" />
-            {err('unit') && <em className="err">{err('unit')}</em>}
-          </label>
-
-          <div className="row p-two">
-            <label className="fld grow"><span>数量</span>
-              <input type="number" inputMode="decimal" min={0} step="0.01" value={it.qty ?? ''} onChange={(e) => set({ qty: e.target.value === '' ? null : Number(e.target.value) })} />
-              {err('qty') && <em className="err">{err('qty')}</em>}
-            </label>
-            <label className="fld grow"><span>单价（元）</span>
-              <input type="number" inputMode="decimal" min={0} step="0.01" value={it.price ?? ''} onChange={(e) => set({ price: e.target.value === '' ? null : Number(e.target.value) })} />
-              {err('price') && <em className="err">{err('price')}</em>}
-            </label>
-          </div>
-
-          <div className="p-subtotal">小计 <b>{itemTotal(it) === null ? '—' : `¥${money(itemTotal(it)!)}`}</b></div>
-
-          <label className="fld"><span>优先级</span>
-            <div className="chips">
-              {(['high', 'mid', 'low'] as PurchasePriority[]).map((p) => (
-                <button key={p} className={'chip' + (it.priority === p ? ' on' : '')} onClick={() => set({ priority: p })}>{PRIORITY_LABEL[p]}</button>
-              ))}
-            </div>
-          </label>
-
-          <label className="fld"><span>购买链接</span>
-            <input value={it.link} onChange={(e) => set({ link: e.target.value })} onBlur={() => set({ link: normalizeLink(it.link) })} placeholder="https://…" inputMode="url" />
-            {err('link') && <em className="err">{err('link')}</em>}
-            {it.link && (
-              <div className="row" style={{ gap: 8, marginTop: 6 }}>
-                <button className="dl-btn" onClick={() => window.open(it.link, '_blank', 'noopener')}>打开</button>
-                <button className="dl-btn" onClick={() => navigator.clipboard.writeText(it.link).then(() => useStore.getState().showToast('链接已复制'))}>复制</button>
-              </div>
-            )}
-          </label>
-
-          <label className="fld"><span>备注</span>
-            <textarea rows={2} value={it.note} onChange={(e) => set({ note: sanitizeText(e.target.value, { multiline: true, max: 500 }) })} placeholder="选填" />
-          </label>
-
-          <div className="fld"><span>图片（最多 6 张）</span>
-            <div className="p-imgs">
-              {it.images.map((img) => (
-                <div key={img.id} className="p-img-wrap">
-                  <ItemImg blobKey={img.blobKey} />
-                  <button className="p-img-del" onClick={() => set({ images: it.images.filter((x) => x.id !== img.id) })} aria-label="删除图片"><IconClose size={12} /></button>
-                </div>
-              ))}
-              {it.images.length < 6 && (
-                <button className="p-img-add" onClick={pickImages}><IconPlus size={18} /><span>添加</span></button>
-              )}
-            </div>
-            <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => { onFiles(e.target.files); e.target.value = ''; }} />
-          </div>
-        </div>
-        <div style={{ height: 20 }} />
-      </div>
-    );
-  }
-
-  // ---------------- 清单页 ----------------
-  return (
-    <div className="page purchase-page">
-      {!purchase && (
         <div className="card">
           <div className="p-empty">
             <span className="p-empty-ico"><IconBox size={22} /></span>
             <div style={{ fontWeight: 600, marginTop: 10 }}>还没有采购清单</div>
-            <div className="tiny" style={{ marginTop: 4 }}>一次只维护一份，填完点「完成」再导出 Excel</div>
+            <div className="tiny" style={{ marginTop: 4 }}>按分类逐项填写，一行一个物品，完成后导出 Excel</div>
           </div>
           <button className="btn primary wide" style={{ marginTop: 14 }} onClick={start}>
             <IconPlus size={18} /> 开始填写
           </button>
         </div>
-      )}
+        <Sheet open={hintOpen} onClose={() => setHintOpen(false)} title="建议在电脑上填写" lead="采购清单字段较多，电脑上排版更宽松、录入更快。手机上也可以继续用。">
+          <div className="row" style={{ gap: 10 }}>
+            <button className="btn grow" onClick={() => setHintOpen(false)}>继续用手机</button>
+            <button className="btn primary grow" onClick={() => { setHintOpen(false); setView('settings'); }}>去下载电脑版</button>
+          </div>
+        </Sheet>
+      </div>
+    );
+  }
 
-      {purchase && (
-        <>
-          <div className="card">
-            <div className="row between">
-              <input
-                className="p-name"
-                value={purchase.name}
-                disabled={purchase.done}
-                onChange={(e) => patchPurchase({ name: sanitizeText(e.target.value, { max: 40 }) })}
-                aria-label="清单名称"
-              />
-              <span className={'chip ' + (purchase.done ? 'ok' : 'warn')}>{purchase.done ? '已完成' : '草稿'}</span>
-            </div>
-            <div className="p-sum">
-              <span>{items.length} 项</span>
-              <b>¥{money(total)}</b>
-            </div>
-            {purchase.done && <div className="tiny" style={{ marginTop: 6 }}>已完成，如需修改请点「打回修改」</div>}
+  const done = purchase.done;
+
+  return (
+    <div className="page purchase-page">
+      <div className="card">
+        <div className="row between">
+          <input
+            className="p-name"
+            value={purchase.name}
+            disabled={done}
+            onChange={(e) => patchPurchase({ name: sanitizeText(e.target.value, { max: 40 }) })}
+            aria-label="清单名称"
+          />
+          <span className={'chip ' + (done ? 'ok' : 'warn')}>{done ? '已完成' : '草稿'}</span>
+        </div>
+        <div className="p-sum">
+          <span>{items.length} 项 · {resolved}/{cats.length} 分类已填</span>
+          <b>¥{money(total)}</b>
+        </div>
+        <div className="p-progress"><i style={{ width: `${cats.length ? (resolved / cats.length) * 100 : 0}%` }} /></div>
+        {done && <div className="tiny" style={{ marginTop: 8 }}>已完成，如需修改请点「打回修改」</div>}
+        {!done && allResolved && (
+          <button className="btn primary wide" style={{ marginTop: 12 }} onClick={() => setConfirmKind('finish')}>
+            <IconCheck size={18} /> 完成清单
+          </button>
+        )}
+      </div>
+
+      <div className="p-layout">
+        <aside className="p-side">
+          <div className="tiny" style={{ marginBottom: 8 }}>分类</div>
+          {cats.map((c) => {
+            const n = items.filter((i) => i.category === c.name).length;
+            return (
+              <button key={c.name} className={'p-cat' + (c.name === activeCat ? ' on' : '')} onClick={() => setActiveCat(c.name)}>
+                <span>{c.name}</span>
+                <span className="p-cat-n">{c.status === 'none' ? '无' : n}</span>
+              </button>
+            );
+          })}
+          {!done && <button className="p-cat p-cat-add" onClick={() => setAddCatOpen(true)}>＋ 添加分类</button>}
+          <div className="tiny" style={{ marginTop: 12 }}>{resolved}/{cats.length} 分类已填</div>
+          <div className="progress-track" style={{ marginTop: 6 }}><i style={{ width: `${cats.length ? (resolved / cats.length) * 100 : 0}%` }} /></div>
+        </aside>
+
+        <main className="p-main">
+          <div className="p-tabs">
+            {cats.map((c) => (
+              <button key={c.name} className={'tabx' + (c.name === activeCat ? ' on' : '')} onClick={() => setActiveCat(c.name)}>
+                {c.name}<span>{c.status === 'none' ? '无' : items.filter((i) => i.category === c.name).length}</span>
+              </button>
+            ))}
+            {!done && <button className="tabx" onClick={() => setAddCatOpen(true)}>＋</button>}
           </div>
 
-          {groups.map((g) => (
-            <div key={g.category} className="card p-group">
-              <div className="row between p-group-head">
-                <span>{g.category} · {g.items.length} 项</span>
-                <b>¥{money(g.total)}</b>
-              </div>
-              {g.items.map((it) => {
-                const idx = items.findIndex((x) => x.id === it.id);
-                return (
-                  <div key={it.id} className="p-item">
-                    <i className="p-prio" style={{ background: PRIORITY_COLOR[it.priority] }} />
-                    <button className="p-item-main" onClick={() => openItem(idx)} disabled={purchase.done}>
-                      <div className="p-item-name">{it.name || '未命名'}</div>
-                      <div className="p-item-spec">{it.spec || '—'}</div>
-                      <div className="p-item-meta">
-                        {it.qty ?? '—'} × {it.price === null ? '未填单价' : `¥${money(it.price)}`}
-                        {it.link && <span className="p-dot" />}{it.link && '链接'}
-                        {it.images.length > 0 && <><span className="p-dot" />{it.images.length} 图</>}
-                      </div>
-                    </button>
-                    <div className="p-item-right">
-                      <b>{itemTotal(it) === null ? '—' : `¥${money(itemTotal(it)!)}`}</b>
-                      {!purchase.done && (
-                        <button className="p-more" onClick={() => setMenuFor(it.id)} aria-label="更多">⋯</button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+          <div className="p-cat-head">
+            <div>
+              <div className="p-cat-title">{activeCat}</div>
+              <div className="tiny">{catItems.length} 项 · 小计 ¥{money(catItems.reduce((s, i) => s + (itemTotal(i) ?? 0), 0))}</div>
             </div>
-          ))}
-
-          {purchase.done && exported && (
-            <button className="btn wide" style={{ marginTop: 4 }} onClick={() => setConfirmKind('new')}>
-              <IconPlus size={18} /> 新建下一份清单
-            </button>
-          )}
-
-          {!purchase.done && items.length > 0 && (
-            <button
-              className="btn wide"
-              style={{ marginTop: 4, color: 'var(--red)', background: 'rgba(255,59,48,.08)' }}
-              onClick={() => setConfirmKind('clear')}
-            >
-              清空清单
-            </button>
-          )}
-
-          <div style={{ height: 96 }} />
-          <div className="p-actions">
-            {!purchase.done ? (
-              <>
-                <button className="btn grow" onClick={addItem}>添加一项</button>
-                <button className="btn primary grow" onClick={() => setConfirmKind('finish')} disabled={!items.length}>完成</button>
-              </>
-            ) : (
-              <>
-                <button className="btn grow" onClick={() => setConfirmKind('rollback')}>打回修改</button>
-                <button className="btn primary grow" onClick={() => setConfirmKind('export')} disabled={busy}>
-                  <IconDownload size={17} /> {busy ? '导出中…' : '导出 Excel'}
+            <div className="row" style={{ gap: 8 }}>
+              {activeCategory?.status === 'done' && <span className="chip ok">本类已完成</span>}
+              {activeCategory?.status === 'none' && <span className="chip">本类无采购</span>}
+              {!done && activeCategory?.status === 'open' && (
+                <button className="dl-btn tint" onClick={() => setConfirmKind(catItems.length ? 'catDone' : 'catNone')}>
+                  {catItems.length ? '完成本分类' : '本类无采购'}
                 </button>
-              </>
-            )}
+              )}
+              {!done && activeCategory?.status !== 'open' && (
+                <button className="dl-btn" onClick={() => setCategoryStatus(activeCat, 'open')}>打回本类</button>
+              )}
+            </div>
           </div>
-        </>
+
+          <div className="p-table-wrap">
+            <table className="p-table">
+              <thead>
+                <tr>
+                  <th className="sticky">名称 / 规格</th>
+                  <th className="w-unit">单位</th>
+                  <th className="w-num">数量</th>
+                  <th className="w-price">单价</th>
+                  <th className="w-total">小计</th>
+                  <th className="w-prio">优先级</th>
+                  <th className="w-att">附件</th>
+                  <th className="w-more"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {catItems.map((it) => (
+                  <tr key={it.id}>
+                    <td className="sticky">
+                      <div className="p-rowname">
+                        <span className="p-prio" style={{ background: PRIORITY_COLOR[it.priority] }} />
+                        <div className="grow">
+                          {done ? (
+                            <div className="p-rname">{it.name || '未命名'}</div>
+                          ) : (
+                            <input
+                              className="p-inline p-inline-name"
+                              value={it.name}
+                              placeholder="填写名称"
+                              onChange={(e) => setField(it.id, { name: sanitizeText(e.target.value, { max: 60 }) })}
+                            />
+                          )}
+                          <button className="p-spec" onClick={() => openDetail(it.id)}>
+                            {it.spec || '＋ 规格 / 链接 / 备注 / 图片'}
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="w-unit">
+                      {done ? it.unit : (
+                        <input className="p-inline" value={it.unit} onChange={(e) => setField(it.id, { unit: sanitizeUnit(e.target.value) })} />
+                      )}
+                    </td>
+                    <td className="w-num">
+                      {done ? (it.qty ?? '—') : (
+                        <input className="p-inline p-num" type="number" inputMode="decimal" min={0} step="0.01" value={it.qty ?? ''} onChange={(e) => setField(it.id, { qty: e.target.value === '' ? null : Number(e.target.value) })} />
+                      )}
+                    </td>
+                    <td className="w-price">
+                      {done ? (it.price === null ? '—' : money(it.price)) : (
+                        <input className="p-inline p-num" type="number" inputMode="decimal" min={0} step="0.01" value={it.price ?? ''} onChange={(e) => setField(it.id, { price: e.target.value === '' ? null : Number(e.target.value) })} />
+                      )}
+                    </td>
+                    <td className="w-total money">{itemTotal(it) === null ? '—' : money(itemTotal(it)!)}</td>
+                    <td className="w-prio"><span className="p-prio-tag" style={{ color: PRIORITY_COLOR[it.priority] }}>{PRIORITY_LABEL[it.priority]}</span></td>
+                    <td className="w-att">{it.images.length ? `${it.images.length} 图` : '—'}</td>
+                    <td className="w-more">
+                      {!done && <button className="p-more" onClick={() => setMenuFor(it.id)}>⋯</button>}
+                    </td>
+                  </tr>
+                ))}
+                {!catItems.length && (
+                  <tr><td colSpan={8} className="p-empty-row">这个分类还没有物品</td></tr>
+                )}
+                {!done && activeCategory?.status === 'open' && (
+                  <tr><td colSpan={8} className="p-add-row"><button onClick={addRow}>＋ 添加一行</button></td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div className="tiny p-scroll-hint">表格可左右滑动，名称列固定在左侧；点一行补充规格、链接、备注和图片。</div>
+        </main>
+      </div>
+
+      <div style={{ height: 80 }} />
+      <div className="p-actions">
+        {done ? (
+          <>
+            <button className="btn grow" onClick={() => setConfirmKind('rollback')}>打回修改</button>
+            <button className="btn primary grow" onClick={() => setConfirmKind('export')} disabled={busy}>
+              <IconDownload size={17} /> {busy ? '导出中…' : '导出 Excel'}
+            </button>
+          </>
+        ) : (
+          <>
+            <button className="btn grow" onClick={() => goCat(-1)}>上一分类</button>
+            <button className="btn primary grow" onClick={() => goCat(1)} disabled={cats.findIndex((c) => c.name === activeCat) >= cats.length - 1}>
+              下一分类
+            </button>
+          </>
+        )}
+      </div>
+
+      {done && exported && (
+        <button className="btn wide" style={{ marginTop: 8 }} onClick={() => setConfirmKind('new')}>＋ 新建下一份清单</button>
       )}
+
+      {/* 详情编辑 */}
+      <Sheet open={!!editing} onClose={cancelEditing} title={editing?.isNew ? '添加条目' : '编辑条目'} lead="名称、数量、单价也可以直接在表格里改">
+        {editing && (
+          <>
+            <div className="card p-form">
+              <label className="fld"><span>名称 <i>*</i></span>
+                <input value={editing.item.name} onChange={(e) => setEditing({ ...editing, item: { ...editing.item, name: sanitizeText(e.target.value, { max: 60 }) } })} placeholder="例如：联想 ThinkPad P15" />
+                {errors.find((e) => e.field === 'name') && <em className="err">{errors.find((e) => e.field === 'name')!.message}</em>}
+              </label>
+              <label className="fld"><span>规格</span>
+                <textarea rows={3} value={editing.item.spec} onChange={(e) => setEditing({ ...editing, item: { ...editing.item, spec: sanitizeText(e.target.value, { multiline: true, max: 300 }) } })} placeholder="CPU / 内存 / 硬盘 / 型号等" />
+              </label>
+              <div className="row p-two">
+                <label className="fld grow"><span>单位</span>
+                  <input value={editing.item.unit} onChange={(e) => setEditing({ ...editing, item: { ...editing.item, unit: sanitizeUnit(e.target.value) } })} />
+                </label>
+                <label className="fld grow"><span>数量</span>
+                  <input type="number" inputMode="decimal" value={editing.item.qty ?? ''} onChange={(e) => setEditing({ ...editing, item: { ...editing.item, qty: e.target.value === '' ? null : Number(e.target.value) } })} />
+                </label>
+                <label className="fld grow"><span>单价</span>
+                  <input type="number" inputMode="decimal" value={editing.item.price ?? ''} onChange={(e) => setEditing({ ...editing, item: { ...editing.item, price: e.target.value === '' ? null : Number(e.target.value) } })} />
+                </label>
+              </div>
+              <div className="p-subtotal">小计 <b>{itemTotal(editing.item) === null ? '—' : `¥${money(itemTotal(editing.item)!)}`}</b></div>
+              <label className="fld"><span>优先级</span>
+                <div className="chips">
+                  {(['high', 'mid', 'low'] as PurchasePriority[]).map((p) => (
+                    <button key={p} className={'chip' + (editing.item.priority === p ? ' on' : '')} onClick={() => setEditing({ ...editing, item: { ...editing.item, priority: p } })}>{PRIORITY_LABEL[p]}</button>
+                  ))}
+                </div>
+              </label>
+              <label className="fld"><span>购买链接</span>
+                <input value={editing.item.link} onChange={(e) => setEditing({ ...editing, item: { ...editing.item, link: e.target.value } })} onBlur={() => setEditing({ ...editing, item: { ...editing.item, link: normalizeLink(editing.item.link) } })} placeholder="https://…" inputMode="url" />
+                {errors.find((e) => e.field === 'link') && <em className="err">{errors.find((e) => e.field === 'link')!.message}</em>}
+              </label>
+              <label className="fld"><span>备注</span>
+                <textarea rows={2} value={editing.item.note} onChange={(e) => setEditing({ ...editing, item: { ...editing.item, note: sanitizeText(e.target.value, { multiline: true, max: 500 }) } })} placeholder="选填" />
+              </label>
+              <div className="fld"><span>图片（最多 6 张）</span>
+                <div className="p-imgs">
+                  {editing.item.images.map((img) => (
+                    <div key={img.id} className="p-img-wrap">
+                      <ItemImg blobKey={img.blobKey} />
+                      <button className="p-img-del" onClick={() => setEditing({ ...editing, item: { ...editing.item, images: editing.item.images.filter((x) => x.id !== img.id) } })}><IconClose size={12} /></button>
+                    </div>
+                  ))}
+                  {editing.item.images.length < 6 && (
+                    <button className="p-img-add" onClick={() => fileRef.current?.click()}><IconPlus size={18} /><span>添加</span></button>
+                  )}
+                </div>
+                <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => { onFiles(e.target.files); e.target.value = ''; }} />
+              </div>
+            </div>
+            <div className="row" style={{ gap: 10 }}>
+              <button className="btn grow" onClick={cancelEditing}>取消</button>
+              <button className="btn primary grow" onClick={saveEditing}>保存</button>
+            </div>
+          </>
+        )}
+      </Sheet>
 
       <Sheet open={!!menuFor} onClose={() => setMenuFor(null)} title="这一项">
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <button className="list-item" onClick={() => { if (menuFor) duplicate(menuFor); setMenuFor(null); }}>
-            <IconCopy size={18} /><span className="grow" style={{ textAlign: 'left' }}>复制这一项</span>
-          </button>
-          <button className="list-item" onClick={() => { if (menuFor) move(menuFor, -1); setMenuFor(null); }}>
-            <span className="grow" style={{ textAlign: 'left' }}>上移</span>
-          </button>
-          <button className="list-item" onClick={() => { if (menuFor) move(menuFor, 1); setMenuFor(null); }}>
-            <span className="grow" style={{ textAlign: 'left' }}>下移</span>
-          </button>
-          <button className="list-item" onClick={() => { setPendingDelete(menuFor); setMenuFor(null); setConfirmKind('delete'); }}>
-            <IconTrash size={18} /><span className="grow" style={{ textAlign: 'left', color: 'var(--red)' }}>删除</span>
-          </button>
+          <button className="list-item" onClick={() => { if (menuFor) openDetail(menuFor); setMenuFor(null); }}><span className="grow" style={{ textAlign: 'left' }}>编辑详情</span></button>
+          <button className="list-item" onClick={() => { if (menuFor) duplicate(menuFor); setMenuFor(null); }}><IconCopy size={18} /><span className="grow" style={{ textAlign: 'left' }}>复制这一项</span></button>
+          <button className="list-item" onClick={() => { if (menuFor) move(menuFor, -1); setMenuFor(null); }}><span className="grow" style={{ textAlign: 'left' }}>上移</span></button>
+          <button className="list-item" onClick={() => { if (menuFor) move(menuFor, 1); setMenuFor(null); }}><span className="grow" style={{ textAlign: 'left' }}>下移</span></button>
+          <button className="list-item" onClick={() => { setPendingDelete(menuFor); setMenuFor(null); setConfirmKind('delete'); }}><IconTrash size={18} /><span className="grow" style={{ textAlign: 'left', color: 'var(--red)' }}>删除</span></button>
         </div>
       </Sheet>
 
+      <Sheet open={addCatOpen} onClose={() => setAddCatOpen(false)} title="添加分类" lead="例如：会议室、软件、外包">
+        <div className="card">
+          <input
+            value={newCat}
+            onChange={(e) => setNewCat(sanitizeText(e.target.value, { max: 10 }))}
+            placeholder="分类名称，最多 10 字"
+            style={{ width: '100%', border: 0, background: 'rgba(120,120,128,.1)', borderRadius: 12, padding: '12px 14px', fontSize: 16 }}
+          />
+        </div>
+        <button className="btn primary wide" onClick={addCategory} disabled={!newCat.trim()}>添加</button>
+      </Sheet>
+
+      <Confirm
+        open={confirmKind === 'catDone'}
+        title="完成本分类？"
+        body={`「${activeCat}」共 ${catItems.length} 项，小计 ¥${money(catItems.reduce((s, i) => s + (itemTotal(i) ?? 0), 0))}。完成后仍可「打回本类」。`}
+        confirmText="完成本类"
+        onClose={() => setConfirmKind(null)}
+        onConfirm={() => { setCategoryStatus(activeCat, 'done'); setConfirmKind(null); useStore.getState().showToast('本分类已完成'); }}
+      />
+      <Confirm
+        open={confirmKind === 'catNone'}
+        title="本分类没有采购？"
+        body={`将把「${activeCat}」标记为无采购，不计入清单。之后可以「打回本类」恢复。`}
+        confirmText="本类无采购"
+        onClose={() => setConfirmKind(null)}
+        onConfirm={() => { setCategoryStatus(activeCat, 'none'); setConfirmKind(null); useStore.getState().showToast('已标记本类无采购'); }}
+      />
       <Confirm
         open={confirmKind === 'finish'}
         title="完成这份清单？"
@@ -486,26 +606,6 @@ export default function Purchase() {
         onClose={() => setConfirmKind(null)}
         onConfirm={newList}
       />
-      <Confirm
-        open={confirmKind === 'clear'}
-        title="清空整份清单？"
-        body="所有条目都会被删除，且不会保留草稿。"
-        confirmText="全部清空"
-        danger
-        onClose={() => setConfirmKind(null)}
-        onConfirm={() => {
-          patchPurchase({ items: [] });
-          setConfirmKind(null);
-          useStore.getState().showToast('清单已清空');
-        }}
-      />
-
-      <Sheet open={hintOpen} onClose={() => setHintOpen(false)} title="建议在电脑上填写" lead="采购清单字段较多，电脑上排版更宽松、录入更快。手机上也可以继续用。">
-        <div className="row" style={{ gap: 10 }}>
-          <button className="btn grow" onClick={() => setHintOpen(false)}>继续用手机</button>
-          <button className="btn primary grow" onClick={() => { setHintOpen(false); setView('settings'); }}>去下载电脑版</button>
-        </div>
-      </Sheet>
     </div>
   );
 }

@@ -69,6 +69,12 @@ export interface PurchaseList {
   done: boolean;
   doneAt?: number;
   items: PurchaseItem[];
+  categories: PurchaseCategory[];
+}
+
+export interface PurchaseCategory {
+  name: string;
+  status: 'open' | 'done' | 'none';
 }
 
 export type InvoiceMode = 'layout' | 'info' | 'verify';
