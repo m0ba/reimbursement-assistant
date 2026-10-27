@@ -57,8 +57,8 @@ export default function Purchase() {
   const [exported, setExported] = useState(false);
   const [addCatOpen, setAddCatOpen] = useState(false);
   const [layoutAsk, setLayoutAsk] = useState(false);
-  const wasNarrow = useRef(false);
-  const [vpWidth, setVpWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+  const [vpWidth, setVpWidth] = useState(() => typeof window !== 'undefined' ? document.documentElement.clientWidth || window.innerWidth : 1200);
+  const wasNarrow = useRef(vpWidth < 860);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [attachFor, setAttachFor] = useState<string | null>(null);
   const attachRef = useRef<HTMLInputElement>(null);
@@ -76,17 +76,30 @@ export default function Purchase() {
   }, [purchase?.categories?.length, activeCat]);
 
   useEffect(() => {
-    const onResize = () => setVpWidth(window.innerWidth);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    let frame = 0;
+    const readWidth = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        setVpWidth(document.documentElement.clientWidth || window.innerWidth);
+      });
+    };
+    const observer = new ResizeObserver(readWidth);
+    observer.observe(document.documentElement);
+    window.addEventListener('resize', readWidth);
+    readWidth();
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener('resize', readWidth);
+    };
   }, []);
 
   useEffect(() => {
     const narrow = vpWidth < 860;
     const fine = window.matchMedia('(pointer: fine)').matches;
-    if (narrow && !wasNarrow.current && fine && layoutPref !== 'mobile') setLayoutAsk(true);
+    if (narrow && !wasNarrow.current && fine) setLayoutAsk(true);
     wasNarrow.current = narrow;
-  }, [vpWidth, layoutPref]);
+  }, [vpWidth]);
 
   useEffect(() => {
     if (purchase) return;
@@ -100,7 +113,7 @@ export default function Purchase() {
   const items = purchase?.items || [];
   const catItems = items.filter((i) => i.category === activeCat);
   const total = purchase ? listTotal(purchase) : 0;
-  const isDesktopLayout = layoutPref === 'desktop' || (layoutPref !== 'mobile' && vpWidth >= 860);
+  const isDesktopLayout = vpWidth >= 860 || layoutPref === 'desktop';
   const filledCats = cats.filter((c) => items.some((i) => i.category === c.name)).length;
 
   const start = () => {
@@ -681,9 +694,9 @@ export default function Purchase() {
 
       <Sheet
         open={layoutAsk}
-        onClose={() => { setSettings({ purchaseLayout: 'mobile' }); setLayoutAsk(false); }}
+        onClose={() => setLayoutAsk(false)}
         title="窗口变窄了"
-        lead="可以保持桌面表格（内容多时左右滑动），也可以切换成手机布局。之后可在设置里再改回。"
+        lead="当前窗口已小于 860px。可以继续用桌面表格，也可以切换成更适合窄窗口的手机布局；再次拉宽会自动恢复桌面布局。"
       >
         <div className="row" style={{ gap: 10 }}>
           <button className="btn grow" onClick={() => { setSettings({ purchaseLayout: 'desktop' }); setLayoutAsk(false); }}>保持桌面布局</button>

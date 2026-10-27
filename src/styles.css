@@ -457,6 +457,10 @@ button { border: 0; background: none; padding: 0; cursor: pointer; }
     border-radius: 0;
     box-shadow: none;
   }
+  .app.app-wide { max-width: min(1600px, calc(100vw - 24px)); width: 100%; }
+  .app.app-wide .topbar { padding-left: 24px; padding-right: 24px; }
+  .app { scrollbar-width: none; }
+  .app::-webkit-scrollbar { width: 0; height: 8px; }
   .topbar { border-radius: 0; padding-top: 14px; }
   .page { padding: 0 24px; }
   .grid { gap: 14px; }
@@ -464,6 +468,8 @@ button { border: 0; background: none; padding: 0; cursor: pointer; }
   .fab { right: max(24px, calc(50vw - 316px)); }
   .sheet { max-width: 640px; border-radius: 26px; bottom: 20px; }
 }
+
+.app.app-wide:has(.p-desktop) { width: 100%; max-width: min(1600px, calc(100vw - 24px)); }
 
 .dl-row {
   display: flex;
@@ -599,12 +605,10 @@ button { border: 0; background: none; padding: 0; cursor: pointer; }
 .p-desktop .p-cat.on { background: var(--bg); font-weight: 600; }
 .p-desktop .p-cat-n { color: var(--text3); font-size: 10px; }
 .p-desktop .p-cat-add { color: var(--blue); font-size: 12.5px; }
-.p-desktop .p-table-wrap { max-height: 66vh; }
-.p-desktop .p-table .sticky { min-width: 240px; }
-.p-desktop .p-actions { left: 50%; right: auto; transform: translateX(-50%); width: min(1180px, 100%); border-radius: 16px 16px 0 0; }
+.p-desktop .p-table-wrap { max-height: 66vh; overflow-x: hidden; overflow-y: auto; }
+.p-desktop .p-actions { left: 50%; right: auto; transform: translateX(-50%); width: min(calc(100vw - 24px), 1600px); border-radius: 16px 16px 0 0; }
 .p-mobile .p-side { display: none; }
 .p-mobile .p-tabs { display: flex; }
-.app:has(.p-desktop) { max-width: 1180px; }
 
 
 .p-scroll-hint { margin: 8px 4px 0; line-height: 1.5; }
@@ -645,7 +649,9 @@ button { border: 0; background: none; padding: 0; cursor: pointer; }
 .p-menu-sep { height: 1px; background: var(--line); margin: 5px 8px; }
 
 /* 表格列宽微调 */
-.p-desktop .p-table .sticky { min-width: 300px; width: auto; }
+.p-desktop .p-table { min-width: 0; table-layout: fixed; }
+.p-desktop .p-table .sticky { min-width: 0; width: auto; }
+.p-desktop .p-rowname, .p-desktop .p-rowname .grow { min-width: 0; }
 .w-unit { width: 44px; } .w-num { width: 54px; } .w-price { width: 80px; } .w-total { width: 86px; }
 .w-prio { width: 52px; } .w-note { width: 100px; } .w-link { width: 120px; } .w-att { width: 50px; } .w-more { width: 15px; }
 
@@ -660,13 +666,26 @@ button { border: 0; background: none; padding: 0; cursor: pointer; }
 .p-inline-note { font-size: 11.5px; color: var(--text2); }
 .p-inline-link { font-size: 11px; color: var(--blue); }
 
-/* 紧凑侧栏与宽名称列（v0.4.10） */
+/* 紧凑侧栏与宽名称列 */
 .p-desktop .p-side { width: 74px; padding: 8px 6px; }
 .p-desktop .p-cat { font-size: 12px; padding: 6px 5px; }
 .p-desktop .p-cat-n { font-size: 10px; }
 .p-desktop .p-cat-add { font-size: 10.5px; }
 .p-desktop .p-side .tiny { font-size: 10px; line-height: 1.35; }
-.p-desktop .p-table .sticky { min-width: 300px; width: auto; }
 .w-note { width: 100px; }
-.w-more { width: 16px; }
+.w-more { width: 36px; }
+.p-desktop .w-more { width: 36px; }
 .p-more { padding: 0 2px; font-size: 16px; }
+
+@media (max-width: 1049px) {
+  .p-desktop .p-table th, .p-desktop .p-table td { padding-left: 6px; padding-right: 6px; }
+  .p-desktop .w-unit { width: 40px; }
+  .p-desktop .w-num { width: 48px; }
+  .p-desktop .w-price { width: 70px; }
+  .p-desktop .w-total { width: 76px; }
+  .p-desktop .w-prio { width: 44px; }
+  .p-desktop .w-link { width: 72px; }
+  .p-desktop .w-att { width: 44px; }
+  .p-desktop .w-note { width: 64px; }
+  .p-desktop .w-more { width: 32px; }
+}
