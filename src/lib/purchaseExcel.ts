@@ -367,9 +367,10 @@ export async function buildPurchaseXlsx(list: PurchaseList): Promise<Blob> {
         const base64 = await blobBase64(imageBlob);
         const extension = imageBlob.type.includes('png') ? 'png' : 'jpeg';
         const imageId = workbook.addImage({ base64, extension });
-        const size = await imageSize(imageBlob, 900, 380);
+        const size = await imageSize(imageBlob, 880, 340);
+        const rowOffset = Math.max(0.12, (384 - size.height) / 2 / 96);
         detailSheet.addImage(imageId, {
-          tl: { col: 0.12, row: plan.imageRow - 1 + 0.08 },
+          tl: { col: 0.12, row: plan.imageRow - 1 + rowOffset },
           ext: size,
           editAs: 'oneCell',
         } as any);
