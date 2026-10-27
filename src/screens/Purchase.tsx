@@ -40,6 +40,7 @@ async function compressImage(file: File): Promise<Blob> {
 
 export default function Purchase() {
   const purchase = useStore((s) => s.purchase);
+  const purchaseLists = useStore((s) => s.purchaseLists);
   const layoutPref = useStore((s) => s.settings.purchaseLayout);
   const setSettings = useStore((s) => s.setSettings);
   const setPurchase = useStore((s) => s.setPurchase);
@@ -120,6 +121,14 @@ export default function Purchase() {
     const list = createPurchaseList();
     setPurchase(list);
     setActiveCat(list.categories[0].name);
+  };
+
+  const reopenList = (list: (typeof purchaseLists)[number]) => {
+    const next = { ...list, done: false, doneAt: undefined, updatedAt: Date.now() };
+    setPurchase(next);
+    setActiveCat(next.categories?.[0]?.name || next.items[0]?.category || '');
+    setExported(false);
+    useStore.getState().showToast('已打开历史清单，可以继续修改');
   };
 
   const goCat = (dir: -1 | 1) => {
@@ -349,6 +358,25 @@ export default function Purchase() {
             <IconPlus size={18} /> 开始填写
           </button>
         </div>
+        {purchaseLists.length > 0 && (
+          <>
+            <div className="section-title">采购清单历史 <span className="n">{purchaseLists.length}</span></div>
+            <div className="list">
+              {purchaseLists.map((list) => (
+                <div className="list-item" key={list.id}>
+                  <div className="grow">
+                    <div className="row" style={{ gap: 6 }}>
+                      <div className="title">{list.name}</div>
+                      <span className={'chip ' + (list.done ? 'ok' : 'warn')}>{list.done ? '已完成' : '草稿'}</span>
+                    </div>
+                    <div className="meta">{list.items.length} 项 · ¥{money(listTotal(list))}</div>
+                  </div>
+                  <button className="dl-btn tint" onClick={() => reopenList(list)}>再编辑</button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
         <Sheet open={hintOpen} onClose={() => setHintOpen(false)} title="建议在电脑上填写" lead="采购清单字段较多，电脑上排版更宽松、录入更快。手机上也可以继续用。">
           <div className="row" style={{ gap: 10 }}>
             <button className="btn grow" onClick={() => setHintOpen(false)}>继续用手机</button>

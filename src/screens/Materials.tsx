@@ -5,10 +5,12 @@ import { BUILTIN_FILES } from '../lib/builtin';
 import { Confirm, Sheet } from '../components/Sheet';
 import { IconArchive, IconDownload, IconFolder, IconShare, IconTrash } from '../components/Icons';
 import { EmptyState } from '../components/EmptyState';
+import { listTotal } from '../lib/purchase';
 
 export default function Materials() {
   const batches = useStore((s) => s.batches);
   const files = useStore((s) => s.files);
+  const purchaseLists = useStore((s) => s.purchaseLists);
   const setView = useStore((s) => s.setView);
   const removeBatch = useStore((s) => s.removeBatch);
   const removeFile = useStore((s) => s.removeFile);
@@ -29,6 +31,12 @@ export default function Materials() {
 
   const current = files.find((f) => f.id === renameId);
 
+  const reopenPurchase = (list: (typeof purchaseLists)[number]) => {
+    useStore.getState().setPurchase({ ...list, done: false, doneAt: undefined, updatedAt: Date.now() });
+    setView('purchase');
+    useStore.getState().showToast('已打开采购清单，可以继续修改');
+  };
+
   const downloadBuiltin = async (file: string, display: string, ext: string) => {
     const res = await fetch(`/builtin/${file}`);
     const blob = await res.blob();
@@ -39,7 +47,7 @@ export default function Materials() {
     <div className="page">
       <div className="large-title">材料库</div>
       <div className="subtitle">
-        三类东西放一起：内置的空白表格（比如贴签单），下载就能打印；每次导入的原始材料，留作记录随时能翻；已经做好的 PDF、Word 成品，随时下载或分享。
+        内置表格、发票与轨迹记录、采购清单和已生成文件都放在这里，草稿可继续编辑，成品可随时下载或分享。
       </div>
 
       <div className="section-title">内置文件</div>
@@ -58,21 +66,46 @@ export default function Materials() {
       </div>
       <div className="tiny" style={{ margin: '8px 6px 0' }}>随程序更新，点右边按钮下载到手机。</div>
 
-      {batches.length === 0 && files.length === 0 ? (
+      {purchaseLists.length > 0 && (
+        <>
+          <div className="section-title">采购清单历史 <span className="n">{purchaseLists.length}</span></div>
+          <div className="tiny" style={{ margin: '-2px 6px 8px' }}>草稿和已完成的清单都会保留，可随时再编辑。</div>
+          <div className="list">
+            {purchaseLists.map((list) => (
+              <div className="list-item" key={list.id}>
+                <div className="grow">
+                  <div className="row" style={{ gap: 6 }}>
+                    <div className="title">{list.name}</div>
+                    <span className={'chip ' + (list.done ? 'ok' : 'warn')}>{list.done ? '已完成' : '草稿'}</span>
+                  </div>
+                  <div className="meta">
+                    {list.items.length} 项 · ¥{listTotal(list).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · {fmtDate(list.updatedAt)}
+                  </div>
+                </div>
+                <button className="dl-btn tint" onClick={() => reopenPurchase(list)}>再编辑</button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {batches.length === 0 && files.length === 0 && purchaseLists.length === 0 && (
         <>
           <div className="section-title">我的材料</div>
           <div className="card">
             <EmptyState
               icon={<IconFolder size={22} />}
               title="还没有任何材料"
-              hint="导入发票或轨迹图后，记录和成品都会出现在这里"
+              hint="导入发票、轨迹图或创建采购清单后，记录和成品都会出现在这里"
             />
           </div>
         </>
-      ) : (
+      )}
+
+      {batches.length > 0 && (
         <>
-          <div className="section-title">导入历史 {batches.length > 0 && <span className="n">{batches.length}</span>}</div>
-          {batches.length > 0 && <div className="tiny" style={{ margin: '-2px 6px 8px' }}>按时间倒序，点进去还能接着处理。</div>}
+          <div className="section-title">导入历史 <span className="n">{batches.length}</span></div>
+          <div className="tiny" style={{ margin: '-2px 6px 8px' }}>按时间倒序，点进去还能接着处理。</div>
         </>
       )}
 

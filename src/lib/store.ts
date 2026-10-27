@@ -35,6 +35,7 @@ interface Store {
   task: TaskState;
   toast: string | null;
   purchase: PurchaseList | null;
+  purchaseLists: PurchaseList[];
   setPurchase: (p: PurchaseList | null) => void;
   patchPurchase: (patch: Partial<PurchaseList> | ((p: PurchaseList) => Partial<PurchaseList>)) => void;
   savedFile: { name: string; uri: string; mime: string } | null;
@@ -66,6 +67,10 @@ const emptyTask: TaskState = {
   updatedAt: 0,
 };
 
+function upsertPurchaseList(lists: PurchaseList[], list: PurchaseList) {
+  return [list, ...lists.filter((item) => item.id !== list.id)].sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
 export const useStore = create<Store>()(
   persist(
     (set, get) => ({
@@ -80,12 +85,14 @@ export const useStore = create<Store>()(
       savedFile: null,
       setSavedFile: (savedFile) => set({ savedFile }),
       purchase: null,
-      setPurchase: (purchase) => set({ purchase }),
+      purchaseLists: [],
+      setPurchase: (purchase) => set((s) => ({ purchase, purchaseLists: purchase ? upsertPurchaseList(s.purchaseLists, purchase) : s.purchaseLists })),
       patchPurchase: (patch) =>
         set((s) => {
           if (!s.purchase) return {};
           const next = typeof patch === 'function' ? patch(s.purchase) : patch;
-          return { purchase: { ...s.purchase, ...next, updatedAt: Date.now() } };
+          const updated = { ...s.purchase, ...next, updatedAt: Date.now() };
+          return { purchase: updated, purchaseLists: upsertPurchaseList(s.purchaseLists, updated) };
         }),
       setView: (view, batchId) => {
         if (typeof window !== 'undefined') window.scrollTo(0, 0);
@@ -115,6 +122,7 @@ export const useStore = create<Store>()(
           files: [],
           activeBatchId: null,
           purchase: null,
+          purchaseLists: [],
           view: 'home',
           settings: { ocrModelId: 'eng-fast', installedModels: ['eng-fast'], lastInvoiceMode: 'info', perPage: 2, introSeen: true, trajPerPage: 20, mirrorCustom: '', purchaseLayout: 'ask' },
           task: emptyTask,
@@ -122,13 +130,15 @@ export const useStore = create<Store>()(
     }),
     {
       name: 'reimb-store-v1',
-      partialize: (s) => ({ batches: s.batches, files: s.files, settings: s.settings, purchase: s.purchase }),
+      partialize: (s) => ({ batches: s.batches, files: s.files, settings: s.settings, purchase: s.purchase, purchaseLists: s.purchaseLists }),
       merge: (persisted, current) => {
         const p = (persisted || {}) as Partial<Store> & { settings?: Partial<Settings> };
+        const purchaseLists = p.purchaseLists?.length ? p.purchaseLists : p.purchase ? [p.purchase] : [];
         return {
           ...current,
           ...p,
           settings: { ...current.settings, ...(p.settings || {}) },
+          purchaseLists,
         };
       },
       onRehydrateStorage: () => (state) => {

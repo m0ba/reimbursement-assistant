@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import JSZip from 'jszip';
 import { getBlob } from './db';
 import type { PurchaseItem, PurchaseList } from './types';
 import { escapeFormula, groupByCategory, itemTotal, PRIORITY_LABEL } from './purchase';
@@ -100,6 +101,63 @@ async function imageSize(blob: Blob, maxWidth: number, maxHeight: number) {
   }
 }
 
+function xmlAttr(value: string) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+async function writeWorkbookWithInternalLinks(workbook: ExcelJS.Workbook): Promise<Uint8Array> {
+  const linksBySheet = new Map<string, Array<{ ref: string; target: string; display: string }>>();
+  for (const sheet of workbook.worksheets) {
+    const links: Array<{ ref: string; target: string; display: string }> = [];
+    sheet.eachRow((row) => {
+      row.eachCell((cell) => {
+        const value = cell.value;
+        if (!value || typeof value !== 'object' || !('hyperlink' in value)) return;
+        const hyperlink = String(value.hyperlink || '');
+        if (!hyperlink.startsWith('#')) return;
+        links.push({ ref: cell.address, target: hyperlink.slice(1), display: String(value.text || '') });
+      });
+    });
+    if (links.length) linksBySheet.set(sheet.name, links);
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  if (!linksBySheet.size) return new Uint8Array(buffer as ArrayBuffer);
+
+  const zip = await JSZip.loadAsync(buffer);
+  for (const [sheetIndex, sheet] of workbook.worksheets.entries()) {
+    const links = linksBySheet.get(sheet.name);
+    if (!links?.length) continue;
+    const sheetPath = `xl/worksheets/sheet${sheetIndex + 1}.xml`;
+    const relPath = `xl/worksheets/_rels/sheet${sheetIndex + 1}.xml.rels`;
+    const sheetFile = zip.file(sheetPath);
+    if (!sheetFile) continue;
+    let xml = await sheetFile.async('string');
+    let rels = (await zip.file(relPath)?.async('string')) || '';
+
+    for (const link of links) {
+      const escapedRef = link.ref.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const tagPattern = new RegExp(`<hyperlink\\b(?=[^>]*\\bref="${escapedRef}")[^>]*\\/>`);
+      const match = xml.match(tagPattern)?.[0];
+      if (!match) continue;
+      const relId = match.match(/\br:id="([^"]+)"/)?.[1];
+      const replacement = `<hyperlink ref="${xmlAttr(link.ref)}" location="${xmlAttr(link.target)}" display="${xmlAttr(link.display)}" tooltip="跳转到对应位置"/>`;
+      xml = xml.replace(match, replacement);
+      if (relId) {
+        const relPattern = new RegExp(`<Relationship\\b(?=[^>]*\\bId="${relId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}")[^>]*\\/>`);
+        rels = rels.replace(relPattern, '');
+      }
+    }
+    zip.file(sheetPath, xml);
+    if (rels) zip.file(relPath, rels);
+  }
+  return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+}
+
 function writeListTitle(ws: ExcelJS.Worksheet, list: PurchaseList) {
   fillRow(ws, 1, LIST_COLS, NAVY);
   ws.mergeCells(1, 1, 1, LIST_COLS);
@@ -190,8 +248,8 @@ export async function buildPurchaseXlsx(list: PurchaseList): Promise<Blob> {
     views: [{ showGridLines: false }],
   });
   detailSheet.columns = [
-    { width: 20 }, { width: 18 }, { width: 18 }, { width: 16 }, { width: 12 },
-    { width: 12 }, { width: 13 }, { width: 24 },
+    { width: 26 }, { width: 23 }, { width: 23 }, { width: 21 }, { width: 16 },
+    { width: 16 }, { width: 17 }, { width: 31 },
   ];
 
   const groups = groupByCategory(list);
@@ -356,7 +414,7 @@ export async function buildPurchaseXlsx(list: PurchaseList): Promise<Blob> {
 
       for (let imageRow = plan.imageRow; imageRow < plan.imageRow + 4; imageRow += 1) {
         fillRow(detailSheet, imageRow, DETAIL_COLS, WHITE);
-        detailSheet.getRow(imageRow).height = 72;
+        detailSheet.getRow(imageRow).height = 94;
       }
       detailSheet.mergeCells(plan.imageRow, 1, plan.imageRow + 3, DETAIL_COLS);
       const imageCell = detailSheet.getCell(plan.imageRow, 1);
@@ -367,8 +425,8 @@ export async function buildPurchaseXlsx(list: PurchaseList): Promise<Blob> {
         const base64 = await blobBase64(imageBlob);
         const extension = imageBlob.type.includes('png') ? 'png' : 'jpeg';
         const imageId = workbook.addImage({ base64, extension });
-        const size = await imageSize(imageBlob, 880, 340);
-        const rowOffset = Math.max(0.12, (384 - size.height) / 2 / 96);
+        const size = await imageSize(imageBlob, 1144, 442);
+        const rowOffset = Math.max(0.12, (501 - size.height) / 2 / 125.33);
         detailSheet.addImage(imageId, {
           tl: { col: 0.12, row: plan.imageRow - 1 + rowOffset },
           ext: size,
@@ -436,7 +494,7 @@ export async function buildPurchaseXlsx(list: PurchaseList): Promise<Blob> {
   const detailLastRow = Math.max(3, plannedRow - 2);
   detailSheet.pageSetup.printArea = `A1:H${detailLastRow}`;
 
-  const buffer = await workbook.xlsx.writeBuffer();
+  const buffer = await writeWorkbookWithInternalLinks(workbook);
   return new Blob([buffer as unknown as BlobPart], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
