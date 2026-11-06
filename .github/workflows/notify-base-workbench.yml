@@ -1,6 +1,9 @@
 name: Notify base workbench
 
 on:
+  push:
+    tags:
+      - 'v*'
   release:
     types: [published]
   workflow_dispatch:
@@ -14,10 +17,11 @@ permissions: {}
 
 jobs:
   notify:
+    if: github.event_name != 'push' || github.event.deleted == false
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.BASE_WORKBENCH_DISPATCH_TOKEN }}
-      SOURCE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      SOURCE_TAG: ${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
     steps:
       - name: Dispatch reimbursement release
         shell: bash
