@@ -12,6 +12,7 @@ export interface InvoiceItem {
   date?: string;
   seller?: string;
   buyer?: string;
+  goodsName?: string;
   amount?: number;
   category?: InvoiceCategory;
   manualCategory?: boolean;

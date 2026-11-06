@@ -9,6 +9,7 @@ import { PdfThumb } from '../components/PdfThumb';
 import { IconCheck, IconCopy, IconDownload, IconInvoice, IconPlus } from '../components/Icons';
 import { PdfPages } from '../components/PdfPages';
 import { EmptyState } from '../components/EmptyState';
+import { invoiceGoodsPreview, invoiceInfoText } from '../lib/invoiceInfo';
 
 const MODES: { id: InvoiceMode; title: string; desc: string; cost: string }[] = [
   { id: 'layout', title: '只要拼版', desc: '只出一份能直接打印的 A4 发票页，最快', cost: '约 1 秒' },
@@ -218,12 +219,24 @@ export default function Invoices() {
                   {invoices.length > 5 && (
                     <div className="tiny" style={{ marginBottom: 4 }}>共 {invoices.length} 张，表格可上下滑动</div>
                   )}
-                  <div className="table-scroll">
-                  <table className="table">
+                  <div className="table-scroll invoice-table-scroll">
+                  <table className="table invoice-info-table">
                     <thead>
                       <tr>
                         <th>类型</th>
                         <th>发票号码</th>
+                        <th className="invoice-info-col">
+                          <span className="invoice-info-heading">
+                            发票信息
+                            <button
+                              type="button"
+                              className="invoice-help"
+                              aria-label="了解发票信息识别说明"
+                              title="识别结果仅供参考，不保证完整准确；表格只显示前20字，复制可获取完整信息"
+                              onClick={() => useStore.getState().showToast('识别结果仅供参考，不保证完整准确；复制可获取完整信息')}
+                            >?</button>
+                          </span>
+                        </th>
                         <th>开票时间</th>
                         <th className="num" style={{ paddingRight: 8 }}>金额</th>
                         {verifyOn && <th style={{ paddingLeft: 8 }}>校验</th>}
@@ -231,7 +244,10 @@ export default function Invoices() {
                     </thead>
                     <tbody>
                       <AnimatePresence initial={false}>
-                        {invoices.map((it) => (
+                        {invoices.map((it) => {
+                          const info = invoiceInfoText(it);
+                          const goodsPreview = invoiceGoodsPreview(it);
+                          return (
                           <motion.tr
                             key={it.id}
                             initial={{ opacity: 0, y: 6 }}
@@ -283,6 +299,25 @@ export default function Invoices() {
                               </div>
                               {it.duplicate && <span className="chip bad" style={{ marginTop: 4 }}>重复</span>}
                             </td>
+                            <td className="invoice-info-col">
+                              {info ? (
+                                <div className="invoice-info-value">
+                                  <span className="invoice-info-preview" title={info}>{goodsPreview || '—'}</span>
+                                  <button
+                                    type="button"
+                                    className="copy-mini"
+                                    aria-label="复制完整发票信息"
+                                    title="复制完整发票信息"
+                                    onClick={async () => {
+                                      await navigator.clipboard.writeText(info);
+                                      useStore.getState().showToast('已复制完整发票信息');
+                                    }}
+                                  >
+                                    <IconCopy size={12} />
+                                  </button>
+                                </div>
+                              ) : <span className="invoice-info-empty">—</span>}
+                            </td>
                             <td className="mono" style={{ fontSize: 11, whiteSpace: 'nowrap', color: 'var(--text2)' }}>
                               {it.date || '—'}
                             </td>
@@ -305,7 +340,8 @@ export default function Invoices() {
                               </td>
                             )}
                           </motion.tr>
-                        ))}
+                          );
+                        })}
                       </AnimatePresence>
                     </tbody>
                   </table>

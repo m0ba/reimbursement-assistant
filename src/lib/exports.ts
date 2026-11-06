@@ -5,6 +5,7 @@ import { embedCjk } from './font';
 import { getBlob } from './db';
 import type { InvoiceItem, TrajItem } from './types';
 import { sortTrajectory, TRAJ_GRIDS } from './layout';
+import { invoiceInfoText } from './invoiceInfo';
 
 const MM = 72 / 25.4;
 
@@ -14,12 +15,12 @@ function csvCell(v: unknown): string {
 }
 
 export function invoiceCsv(items: InvoiceItem[]): string {
-  const head = ['类型', '发票号码', '开票日期', '销售方', '行程', '金额', '校验'];
+  const head = ['类型', '发票号码', '开票日期', '发票信息', '行程', '金额', '校验'];
   const rows = items.map((i) => [
     i.category || '',
     i.number || '',
     i.date || '',
-    i.seller || '',
+    invoiceInfoText(i),
     routeText(i),
     i.amount?.toFixed(2) || '',
     verifyText(i),
@@ -41,12 +42,12 @@ export function verifyText(i: InvoiceItem): string {
 }
 
 export function invoicePlainText(items: InvoiceItem[]): string {
-  const head = ['类型', '发票号码', '开票日期', '销售方', '行程', '金额', '校验'];
+  const head = ['类型', '发票号码', '开票日期', '发票信息', '行程', '金额', '校验'];
   const rows = items.map((i) => [
     i.category || '',
     i.number || '',
     i.date || '',
-    i.seller || '',
+    invoiceInfoText(i),
     routeText(i),
     i.amount?.toFixed(2) || '',
     verifyText(i),
@@ -58,7 +59,6 @@ export async function buildInvoiceInfoPdf(items: InvoiceItem[], batchName: strin
   const doc = await PDFDocument.create();
   doc.setTitle('发票信息表');
   const font = await embedCjk(doc);
-  const page = doc.addPage([A4W, A4H]);
 
   const marginX = 14 * MM;
   const top = A4H - 16 * MM;
@@ -67,42 +67,76 @@ export async function buildInvoiceInfoPdf(items: InvoiceItem[], batchName: strin
     { key: 'cat', title: '类型', w: 44 },
     { key: 'num', title: '发票号码', w: 118, size: 8.0 },
     { key: 'date', title: '开票日期', w: 64 },
-    { key: 'seller', title: '销售方', w: 80 },
-    { key: 'route', title: '行程', w: 126 },
+    { key: 'info', title: '发票信息', w: 106, size: 7.2 },
+    { key: 'route', title: '行程', w: 100 },
     { key: 'amount', title: '金额（元）', w: 64 },
     { key: 'verify', title: '校验', w: 40 },
   ];
   const totalW = cols.reduce((s, c) => s + c.w, 0);
   const scaleX = (A4W - marginX * 2) / totalW;
-
+  let page = doc.addPage([A4W, A4H]);
   let y = top;
-  page.drawText('发票信息表', { x: marginX, y, size: 18, font, color: rgb(0.1, 0.1, 0.1) });
-  y -= 18;
-  page.drawText(batchName, { x: marginX, y, size: 9, font, color: rgb(0.45, 0.45, 0.45) });
-  y -= 16;
-
-  const rowH = 20;
   const line = rgb(0.8, 0.8, 0.8);
-  const drawRow = (cells: string[], bold = false, shade = false) => {
+
+  function wrapText(text: string, size: number, maxWidth: number): string[] {
+    const chars = Array.from(text || '—');
+    const lines: string[] = [];
+    let current = '';
+    for (const char of chars) {
+      const test = current + char;
+      if (current && font.widthOfTextAtSize(test, size) > maxWidth) {
+        lines.push(current);
+        current = char;
+      } else {
+        current = test;
+      }
+    }
+    if (current) lines.push(current);
+    return lines.length ? lines : ['—'];
+  }
+
+  function drawHeading(continued: boolean) {
+    y = top;
+    page.drawText(continued ? '发票信息表（续）' : '发票信息表', { x: marginX, y, size: continued ? 14 : 18, font, color: rgb(0.1, 0.1, 0.1) });
+    y -= 18;
+    page.drawText(batchName, { x: marginX, y, size: 9, font, color: rgb(0.45, 0.45, 0.45) });
+    y -= 16;
+  }
+
+  function drawRow(cells: string[], bold = false, shade = false, allowPageBreak = true) {
+    const prepared = cells.map((text, i) => {
+      const col = cols[i];
+      const size = bold ? 9 : (col as any).size || 8.6;
+      const width = col.w * scaleX - 8;
+      return { lines: wrapText(String(text || '—'), size, width), size };
+    });
+    const maxLines = Math.max(1, ...prepared.map((cell) => cell.lines.length));
+    const lineHeight = Math.max(...prepared.map((cell) => cell.size + 1.4));
+    const rowH = Math.max(20, maxLines * lineHeight + 8);
+    if (allowPageBreak && y - rowH < 24 * MM) {
+      page = doc.addPage([A4W, A4H]);
+      drawHeading(true);
+      drawRow(cols.map((c) => c.title), true, true, false);
+    }
     if (shade) page.drawRectangle({ x: marginX, y: y - rowH + 5, width: A4W - marginX * 2, height: rowH, color: rgb(0.96, 0.96, 0.97) });
     let x = marginX;
-    cells.forEach((text, i) => {
-      const c = cols[i];
-      const w = c.w * scaleX;
-      const size = bold ? 9 : (c as any).size || 8.6;
-      let t = text;
-      let cut = false;
-      while (t.length > 1 && font.widthOfTextAtSize(t, size) > w - 8) {
-        t = t.slice(0, -1);
-        cut = true;
-      }
-      if (cut) t = t.slice(0, -1) + '…';
-      page.drawText(t, { x: x + 3, y: y - rowH + 10, size, font, color: rgb(0.15, 0.15, 0.15) });
-      x += w;
+    prepared.forEach((cell, i) => {
+      const width = cols[i].w * scaleX;
+      const centered = [0, 1, 6, 7].includes(i);
+      const blockHeight = cell.lines.length * lineHeight;
+      const firstY = y - Math.max(7, (rowH - blockHeight) / 2 + cell.size);
+      cell.lines.forEach((textLine, lineIndex) => {
+        const textWidth = font.widthOfTextAtSize(textLine, cell.size);
+        const textX = centered ? x + Math.max(3, (width - textWidth) / 2) : x + 3;
+        page.drawText(textLine, { x: textX, y: firstY - lineIndex * lineHeight, size: cell.size, font, color: rgb(0.15, 0.15, 0.15) });
+      });
+      x += width;
     });
     page.drawLine({ start: { x: marginX, y: y - rowH + 5 }, end: { x: A4W - marginX, y: y - rowH + 5 }, thickness: 0.4, color: line });
     y -= rowH;
-  };
+  }
+
+  drawHeading(false);
 
   drawRow(cols.map((c) => c.title), true, true);
   items.forEach((it, idx) => {
@@ -111,7 +145,7 @@ export async function buildInvoiceInfoPdf(items: InvoiceItem[], batchName: strin
       it.category || '—',
       it.number || '—',
       it.date || '—',
-      it.seller || '—',
+      invoiceInfoText(it) || '—',
       routeText(it) || '—',
       it.amount !== undefined ? it.amount.toFixed(2) : '—',
       verifyText(it) || '—',
@@ -119,7 +153,14 @@ export async function buildInvoiceInfoPdf(items: InvoiceItem[], batchName: strin
   });
 
   const cats = ['住宿', '火车', '打车', '其他'] as const;
-  y -= 10;
+  if (y < 24 * MM + 80) {
+    page = doc.addPage([A4W, A4H]);
+    y = top;
+    page.drawText('发票信息表 · 汇总', { x: marginX, y, size: 14, font, color: rgb(0.1, 0.1, 0.1) });
+    y -= 28;
+  } else {
+    y -= 10;
+  }
   for (const c of cats) {
     const sum = items.filter((i) => i.category === c && i.amount !== undefined).reduce((s, i) => s + (i.amount || 0), 0);
     page.drawText(`${c}小计`, { x: marginX, y, size: 9, font, color: rgb(0.3, 0.3, 0.3) });

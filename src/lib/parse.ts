@@ -6,6 +6,7 @@ export interface ParsedInvoice {
   amount?: number;
   seller?: string;
   buyer?: string;
+  goodsName?: string;
   category: InvoiceCategory;
   ok: boolean;
   routeFrom?: string;
@@ -78,6 +79,25 @@ export function parseInvoiceText(raw: string): ParsedInvoice {
 
   const category = classify(flat, seller || '');
 
+  let goodsName: string | undefined;
+  const goodsLines = lines.filter((line) => /^\*[^*]+\*/.test(line) && !/项目名称/.test(line));
+  if (goodsLines.length) {
+    const units = new Set(['天', '晚', '台', '个', '件', '套', '张', '次', '人', '间', '项', '台套', '千克', '公斤', '米', '箱', '盒']);
+    const names: string[] = [];
+    for (const goodsLine of goodsLines) {
+      const rawGoods = goodsLine.replace(/^\*[^*]+\*/, '').trim();
+      const words: string[] = [];
+      for (const token of rawGoods.split(/\s+/)) {
+        if (!token) continue;
+        if (units.has(token) || /^[¥￥]?\d/.test(token)) break;
+        words.push(token);
+      }
+      const name = words.join(' ').trim();
+      if (name && !names.includes(name)) names.push(name);
+    }
+    goodsName = names.join('、') || undefined;
+  }
+
   if (category === '火车' && (!seller || seller.length > 20)) seller = '中国铁路';
 
   let routeFrom: string | undefined;
@@ -103,6 +123,7 @@ export function parseInvoiceText(raw: string): ParsedInvoice {
     amount,
     seller,
     buyer,
+    goodsName,
     category,
     ok: Boolean(number && amount !== undefined),
     routeFrom,

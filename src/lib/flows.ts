@@ -144,6 +144,7 @@ export function startParse(batchId: string, verify: boolean) {
               amount: parsed.amount,
               seller: parsed.seller,
               buyer: parsed.buyer,
+              goodsName: parsed.goodsName,
               category: parsed.category,
               pages: doc.numPages,
               routeFrom: parsed.routeFrom,
