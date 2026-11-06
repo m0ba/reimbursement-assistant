@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useStore } from '../lib/store';
 import type { InvoiceMode } from '../lib/types';
@@ -16,6 +17,80 @@ const MODES: { id: InvoiceMode; title: string; desc: string; cost: string }[] = 
   { id: 'info', title: '拼版 + 信息表', desc: '多识别出类型、号码、日期、销售方和金额，方便录入或核对', cost: '约 +3 秒' },
   { id: 'verify', title: '拼版 + 信息表 + 二维码校验', desc: '再核对号码和金额与票面二维码是否一致，能发现被改过的票', cost: '约 +10 秒' },
 ];
+
+const INVOICE_HELP_TEXT = '识别结果仅供参考，不保证完整准确；表格只显示货物名称前 20 字，复制或者导出可获取完整信息。';
+
+function InvoiceInfoHelp() {
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [hovered, setHovered] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const [position, setPosition] = useState({ left: 8, top: 8, arrowLeft: 18 });
+  const open = hovered || pinned;
+
+  useEffect(() => {
+    if (!open) return;
+    const update = () => {
+      const button = buttonRef.current;
+      if (!button) return;
+      const rect = button.getBoundingClientRect();
+      const width = Math.min(286, window.innerWidth - 16);
+      const left = Math.min(Math.max(8, rect.left + rect.width / 2 - width / 2), window.innerWidth - width - 8);
+      setPosition({
+        left,
+        top: rect.bottom + 8,
+        arrowLeft: Math.min(Math.max(16, rect.left + rect.width / 2 - left), width - 16),
+      });
+    };
+    update();
+    window.addEventListener('resize', update);
+    document.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      document.removeEventListener('scroll', update, true);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!pinned) return;
+    const closeOutside = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!buttonRef.current?.contains(target) && !popoverRef.current?.contains(target)) setPinned(false);
+    };
+    document.addEventListener('pointerdown', closeOutside);
+    return () => document.removeEventListener('pointerdown', closeOutside);
+  }, [pinned]);
+
+  return (
+    <span className="invoice-help-wrap">
+      <button
+        ref={buttonRef}
+        type="button"
+        className="invoice-help"
+        aria-label="了解发票信息识别说明"
+        aria-expanded={open}
+        aria-controls="invoice-info-help-popover"
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onFocus={() => setHovered(true)}
+        onBlur={() => setHovered(false)}
+        onClick={() => setPinned((value) => !value)}
+      >?</button>
+      {open && createPortal(
+        <div
+          ref={popoverRef}
+          id="invoice-info-help-popover"
+          className="invoice-help-popover"
+          role="tooltip"
+          style={{ left: position.left, top: position.top, '--invoice-help-arrow': `${position.arrowLeft}px` } as React.CSSProperties}
+        >
+          {INVOICE_HELP_TEXT}
+        </div>,
+        document.body,
+      )}
+    </span>
+  );
+}
 
 export default function Invoices() {
   const batches = useStore((s) => s.batches);
@@ -228,13 +303,7 @@ export default function Invoices() {
                         <th className="invoice-info-col">
                           <span className="invoice-info-heading">
                             发票信息
-                            <button
-                              type="button"
-                              className="invoice-help"
-                              aria-label="了解发票信息识别说明"
-                              title="识别结果仅供参考，不保证完整准确；表格只显示前20字，复制可获取完整信息"
-                              onClick={() => useStore.getState().showToast('识别结果仅供参考，不保证完整准确；复制可获取完整信息')}
-                            >?</button>
+                            <InvoiceInfoHelp />
                           </span>
                         </th>
                         <th>开票时间</th>

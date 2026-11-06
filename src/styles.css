@@ -331,6 +331,7 @@ button { border: 0; background: none; padding: 0; cursor: pointer; }
 .invoice-info-table th:nth-child(5) { width: 74px; }
 .invoice-info-table th:nth-child(6) { width: 48px; }
 .invoice-info-heading { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.invoice-help-wrap { display: inline-flex; }
 .invoice-help {
   width: 16px; height: 16px; border-radius: 50%;
   display: inline-grid; place-items: center;
@@ -338,6 +339,35 @@ button { border: 0; background: none; padding: 0; cursor: pointer; }
   font-size: 10px; font-weight: 600; line-height: 1;
 }
 .invoice-help:active { transform: scale(.92); }
+.invoice-help-popover {
+  position: fixed; z-index: 95;
+  width: min(286px, calc(100vw - 16px));
+  padding: 10px 12px;
+  border: 1px solid rgba(60,60,67,.10);
+  border-radius: 12px;
+  background: rgba(255,255,255,.98);
+  color: var(--text2);
+  box-shadow: 0 12px 34px rgba(0,0,0,.16), 0 2px 8px rgba(0,0,0,.06);
+  backdrop-filter: saturate(180%) blur(18px);
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  font-size: 12px; line-height: 1.55;
+  pointer-events: none;
+  animation: invoice-help-in .16s ease-out;
+}
+.invoice-help-popover::before {
+  content: '';
+  position: absolute; top: -5px; left: calc(var(--invoice-help-arrow) - 5px);
+  width: 10px; height: 10px;
+  border-left: 1px solid rgba(60,60,67,.10);
+  border-top: 1px solid rgba(60,60,67,.10);
+  background: rgba(255,255,255,.98);
+  transform: rotate(45deg);
+  border-top-left-radius: 2px;
+}
+@keyframes invoice-help-in {
+  from { opacity: 0; transform: translateY(-3px) scale(.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
 .invoice-info-value { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .invoice-info-preview {
   display: block; min-width: 0; max-width: 182px;
