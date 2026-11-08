@@ -89,6 +89,7 @@ export interface Batch {
   layoutFileId?: string;
   layoutDone?: boolean;
   layoutPages?: number;
+  layoutError?: string;
   perPage?: 2 | 4;
   layoutKey?: string;
   done?: boolean;

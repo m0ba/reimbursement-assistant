@@ -76,6 +76,7 @@ async function pump(): Promise<void> {
         queued: queue.length,
       });
     } catch (err) {
+      console.error('[报销助手任务失败]', job.label, err);
       store().setTask({ running: false, tone: 'warn', step: '任务出错：' + (err as Error)?.message });
     }
   }

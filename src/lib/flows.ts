@@ -84,13 +84,19 @@ function startMerge(batchId: string) {
       const per = batch.perPage ?? 2;
       ctx.setStep('正在拼版');
       ctx.setProgress(0, items.length);
-      const res = await buildInvoiceA4(items, per, (n) => ctx.setProgress(n, items.length));
-      const key = `blob_${uid('pdf')}`;
-      await putBlob(key, res.blob);
-      const prevKey = s().batches.find((b) => b.id === batchId)?.layoutKey;
-      if (prevKey) await deleteBlob(prevKey);
-      s().patchBatch(batchId, { layoutDone: true, layoutKey: key, layoutPages: res.pages });
-      ctx.setStep('拼版已就绪');
+      try {
+        const res = await buildInvoiceA4(items, per, (n) => ctx.setProgress(n, items.length));
+        const key = `blob_${uid('pdf')}`;
+        await putBlob(key, res.blob);
+        const prevKey = s().batches.find((b) => b.id === batchId)?.layoutKey;
+        if (prevKey) await deleteBlob(prevKey);
+        s().patchBatch(batchId, { layoutDone: true, layoutKey: key, layoutPages: res.pages, layoutError: undefined });
+        ctx.setStep('拼版已就绪');
+      } catch (error) {
+        const message = (error as Error)?.message || '未知错误';
+        s().patchBatch(batchId, { layoutDone: false, layoutError: message });
+        throw error;
+      }
     },
   });
 }

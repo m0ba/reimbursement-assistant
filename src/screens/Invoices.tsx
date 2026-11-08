@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useStore } from '../lib/store';
 import type { InvoiceMode } from '../lib/types';
-import { appendInvoiceFiles, applyInvoiceMode, changePerPage, exportInvoiceInfo, exportInvoicePdf, finishInvoiceBatch, importInvoiceFiles, setInvoiceCategory, startParse } from '../lib/flows';
+import { appendInvoiceFiles, applyInvoiceMode, changePerPage, exportInvoiceInfo, exportInvoicePdf, finishInvoiceBatch, importInvoiceFiles, regenerateLayout, setInvoiceCategory, startParse } from '../lib/flows';
 import { Sheet } from '../components/Sheet';
 import { Ring } from '../components/TaskBadge';
 import { PdfThumb } from '../components/PdfThumb';
@@ -228,19 +228,25 @@ export default function Invoices() {
               </div>
               <div className="row" style={{ gap: 8 }}>
                 {batch.done ? <span className="chip ok">已完成</span> : <span className="chip warn">草稿</span>}
-                <Ring value={mergePct} size={22} tone={mergeDone ? 'done' : 'run'} />
+                <Ring value={mergePct} size={22} tone={mergeDone ? 'done' : batch.layoutError ? 'warn' : 'run'} />
               </div>
             </div>
 
             <div style={{ marginTop: 10 }}>
               {batch.layoutKey ? (
                 <PdfPages blobKey={batch.layoutKey} />
+              ) : batch.layoutError ? (
+                <div className="preview-error">
+                  <div>A4 拼版没有生成成功</div>
+                  <div className="tiny">{batch.layoutError}</div>
+                  <button className="btn tint" onClick={() => regenerateLayout(batch.id)}>重新生成</button>
+                </div>
               ) : (
                 <div className="shimmer" style={{ height: 180, borderRadius: 10 }} />
               )}
             </div>
             <div className="tiny" style={{ margin: '2px 0 10px' }}>
-              {batch.layoutPages ? `共 ${batch.layoutPages} 页，左右滑动查看` : '正在生成预览…'}
+              {batch.layoutPages ? `共 ${batch.layoutPages} 页，左右滑动查看` : batch.layoutError ? '可以点「重新生成」再试一次' : '正在生成预览…'}
             </div>
 
             <div className="row" style={{ gap: 10 }}>

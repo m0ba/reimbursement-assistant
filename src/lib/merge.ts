@@ -1,6 +1,7 @@
 import { PDFDocument, StandardFonts, rgb, degrees } from 'pdf-lib';
 import type { InvoiceItem } from './types';
 import { getBlob } from './db';
+import { openPdf, renderPageToCanvas } from './pdfdoc';
 
 export const A4W = 595.2756;
 export const A4H = 841.8898;
@@ -9,6 +10,123 @@ const MM = 72 / 25.4;
 export interface MergeResult {
   blob: Blob;
   pages: number;
+}
+
+interface ImagePage {
+  png: Uint8Array;
+  width: number;
+  height: number;
+}
+
+async function canvasPng(canvas: HTMLCanvasElement): Promise<Uint8Array> {
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+  if (!blob) throw new Error('无法生成发票预览');
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
+/** 少数发票页缺少 pdf-lib 能读取的 Contents，但用 PDF.js 仍可正常显示。 */
+async function buildInvoiceA4FromImages(
+  items: InvoiceItem[],
+  perPage: 2 | 4,
+  onProgress?: (done: number) => void,
+): Promise<MergeResult> {
+  const out = await PDFDocument.create();
+  out.setTitle('发票拼版');
+  out.setProducer('报销助手');
+  const flat: ImagePage[] = [];
+
+  for (let itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
+    const item = items[itemIndex];
+    const blob = await getBlob(item.blobKey);
+    if (blob) {
+      try {
+        const doc = await openPdf(await blob.arrayBuffer());
+        for (let pageNo = 1; pageNo <= doc.numPages; pageNo += 1) {
+          const canvas = await renderPageToCanvas(doc, pageNo, 2);
+          flat.push({
+            png: await canvasPng(canvas),
+            width: canvas.width,
+            height: canvas.height,
+          });
+          canvas.width = 1;
+          canvas.height = 1;
+        }
+        await doc.destroy();
+      } catch {
+        /* 无法渲染的文件跳过，保留其余发票 */
+      }
+    }
+    onProgress?.(itemIndex + 1);
+  }
+  if (!flat.length) throw new Error('无法读取这些发票的页面内容');
+
+  const grey = rgb(0.62, 0.62, 0.62);
+  const halfH = A4H / 2;
+  const cellW = A4W / 2;
+  const cellH = A4H / 2;
+  const pad = 4.5 * MM;
+
+  for (let index = 0; index < flat.length; index += perPage) {
+    const page = out.addPage([A4W, A4H]);
+    for (let slot = 0; slot < perPage; slot += 1) {
+      const entry = flat[index + slot];
+      if (!entry) break;
+      const image = await out.embedPng(entry.png);
+      let x: number;
+      let y: number;
+      let width: number;
+      let height: number;
+      let rotate = degrees(0);
+
+      if (perPage === 2) {
+        const maxH = halfH - 34 * MM;
+        const contentW = 200 * MM;
+        let scale = contentW / entry.width;
+        if (entry.height * scale > maxH) scale = maxH / entry.height;
+        width = entry.width * scale;
+        height = entry.height * scale;
+        x = (A4W - width) / 2;
+        const centerY = slot === 0 ? halfH * 1.5 : halfH * 0.5;
+        y = centerY - height / 2;
+      } else {
+        const col = slot % 2;
+        const row = Math.floor(slot / 2);
+        const availableW = cellW - pad * 2;
+        const availableH = cellH - pad * 2;
+        const cellBottom = A4H - (row + 1) * cellH;
+        const scale = Math.min(availableW / entry.height, availableH / entry.width);
+        width = entry.height * scale;
+        height = entry.width * scale;
+        const left = col * cellW + (cellW - width) / 2;
+        const bottom = cellBottom + (cellH - height) / 2;
+        const ccw = slot % 2 === 0;
+        x = ccw ? left + width : left;
+        y = ccw ? bottom : bottom + height;
+        rotate = degrees(ccw ? 90 : -90);
+      }
+      page.drawImage(image, { x, y, width, height, rotate });
+    }
+    page.drawLine({
+      start: { x: 8 * MM, y: halfH },
+      end: { x: A4W - 8 * MM, y: halfH },
+      thickness: 0.4,
+      color: grey,
+      dashArray: [3, 4],
+    });
+    if (perPage === 4) {
+      page.drawLine({
+        start: { x: A4W / 2, y: 8 * MM },
+        end: { x: A4W / 2, y: A4H - 8 * MM },
+        thickness: 0.4,
+        color: grey,
+        dashArray: [3, 4],
+      });
+    }
+  }
+
+  if (out.getPageCount() === 0) out.addPage([A4W, A4H]);
+  const bytes = await out.save();
+  return { blob: new Blob([bytes as unknown as BlobPart], { type: 'application/pdf' }), pages: out.getPageCount() };
 }
 
 /** 每页两张，200mm 宽，上下居中，5mm 边距，中间浅灰虚线。 */
@@ -129,6 +247,10 @@ export async function buildInvoiceA4(
     page.drawText('', { x: 40, y: 40, size: 10, font });
   }
 
-  const bytes = await out.save();
-  return { blob: new Blob([bytes as unknown as BlobPart], { type: 'application/pdf' }), pages: out.getPageCount() };
+  try {
+    const bytes = await out.save();
+    return { blob: new Blob([bytes as unknown as BlobPart], { type: 'application/pdf' }), pages: out.getPageCount() };
+  } catch {
+    return buildInvoiceA4FromImages(items, perPage, onProgress);
+  }
 }
