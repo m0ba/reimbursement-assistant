@@ -106,6 +106,7 @@ export default function Invoices() {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [appendId, setAppendId] = useState<string | null>(null);
   const [edit, setEdit] = useState<{ id: string; num: string; amt: string } | null>(null);
+  const recoveredLayouts = useRef(new Set<string>());
 
   const batch = useMemo(() => {
     return batches.find((b) => b.id === activeId && b.kind === 'invoice');
@@ -122,6 +123,22 @@ export default function Invoices() {
     }
   }, [batch]);
 
+  const mergeRunning = task.kind === 'merge' && task.running;
+
+  useEffect(() => {
+    if (!batch || batch.done || batch.layoutDone || batch.layoutKey || batch.layoutError || mergeRunning) return;
+    if (recoveredLayouts.current.has(batch.id)) return;
+    const timer = window.setTimeout(() => {
+      const current = useStore.getState().batches.find((item) => item.id === batch.id);
+      const currentTask = useStore.getState().task;
+      if (!current || current.done || current.layoutDone || current.layoutKey || current.layoutError) return;
+      if (currentTask.kind === 'merge' && currentTask.running) return;
+      recoveredLayouts.current.add(batch.id);
+      regenerateLayout(batch.id);
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [batch?.id, batch?.done, batch?.layoutDone, batch?.layoutKey, batch?.layoutError, mergeRunning]);
+
   const onPick = async (files: FileList | null) => {
     if (!files || !files.length) return;
     const arr = Array.from(files).filter((f) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
@@ -136,7 +153,6 @@ export default function Invoices() {
     setModeOpen(true);
   };
 
-  const mergeRunning = task.kind === 'merge' && task.running;
   const mergeDone = batch?.layoutDone;
   const mergePct = mergeRunning && task.total ? task.done / task.total : mergeDone ? 1 : 0.06;
 
